@@ -2,31 +2,125 @@ package core
 
 import (
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
 
+// Server pooling implementation
+
 func (sp *ServerPool) AddNewServer(server *Server) string {
 	serverUUID := uuid.NewString()
-	sp.Servers[serverUUID] = server
+	sp.servers[serverUUID] = server
 	return serverUUID
 }
 
 func (sp *ServerPool) GetServer(uuid string) (*Server, error) {
-	sp.Mu.Lock()
-	defer sp.Mu.Unlock()
-	if server, ok := sp.Servers[uuid]; ok {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if server, ok := sp.servers[uuid]; ok {
 		return server, nil
 	}
 	return nil, fmt.Errorf("this server %s not exist", uuid)
 }
 
 func (sp *ServerPool) GetAllServer() []*Server {
-	sp.Mu.Lock()
-	defer sp.Mu.Unlock()
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	var servers []*Server
-	for _, s := range sp.Servers {
+	for _, s := range sp.servers {
 		servers = append(servers, s)
 	}
 	return servers
+}
+
+// Round Robin Balancer implementation
+
+func (rb *RoundRobinBalancer) GetNextServer() (*Server, error) {
+	servers := rb.pool.GetAllServer()
+
+	if len(servers) == 0 {
+		return nil, fmt.Errorf("no server found try to add server to your Server pool before")
+	}
+
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+
+	rb.idx = (rb.idx + 1) % len(servers)
+
+	selectedServer := servers[rb.idx]
+
+	return selectedServer, nil
+}
+
+//  Load Balancer
+
+func (lb *LoadBalancer) Serve(w http.ResponseWriter, r *http.Request) {
+	server, err := lb.strategy.GetNextServer()
+
+	if err != nil {
+		http.Error(w, "Internal server error", 500)
+		return
+	}
+
+	targetURL, err := url.Parse(server.URL)
+
+	if err != nil {
+		http.Error(w, "Invalid backend url", http.StatusInternalServerError)
+		return
+	}
+
+	targetPath := strings.TrimPrefix(targetURL.String(), "/") + r.URL.Path
+
+	if r.URL.RawQuery != "" {
+		targetPath += "?" + r.URL.RawQuery
+	}
+
+	req, err := http.NewRequest(r.Method, targetPath, r.Body)
+
+	if err != nil {
+		http.Error(w, "Failed to create the request to the backend server", http.StatusInternalServerError)
+		return
+	}
+
+	for k, values := range r.Header {
+		for _, value := range values {
+			req.Header.Add(k, value)
+		}
+	}
+
+	req.Header.Set("X-Forwarded-for", r.RemoteAddr)
+
+	client := &http.Client{
+		Timeout: time.Second * 60,
+	}
+
+	res, err := client.Do(req)
+
+	if err != nil {
+		http.Error(w, "Failed to reach the backend server", http.StatusBadGateway)
+	}
+
+	resBytes, err := io.ReadAll(res.Body)
+
+	if err != nil {
+		http.Error(w, "Error during the response body reading", http.StatusInternalServerError)
+		return
+	}
+
+	defer res.Body.Close()
+
+	for k, values := range res.Header {
+		for _, value := range values {
+			w.Header().Add(k, value)
+		}
+	}
+
+	w.WriteHeader(res.StatusCode)
+
+	fmt.Fprint(w, string(resBytes))
 }

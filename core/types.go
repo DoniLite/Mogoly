@@ -17,12 +17,20 @@ type Server struct {
 }
 
 type ServerPool struct {
-	Servers map[string]*Server
-	Mu      sync.Mutex
+	servers map[string]*Server
+	mu      sync.Mutex
 }
 
 type RoundRobinBalancer struct {
-	Pool *ServerPool // Reference to the server pooling object
-	Mu   sync.Mutex
-	Idx  int // The last selected server index
+	pool *ServerPool // Reference to the server pooling object
+	mu   sync.Mutex
+	idx  int // The last selected server index
+}
+
+type BalancerStrategy interface {
+	GetNextServer() (*Server, error)
+}
+
+type LoadBalancer struct {
+	strategy BalancerStrategy
 }

@@ -4,15 +4,21 @@ import "sync"
 
 func NewServerPool() *ServerPool {
 	return &ServerPool{
-		Servers: make(map[string]*Server, 0),
-		Mu: sync.Mutex{},
+		servers: make(map[string]*Server, 0),
+		mu:      sync.Mutex{},
 	}
 }
 
 func NewRoundRobinBalancer(pool *ServerPool) *RoundRobinBalancer {
-	return  &RoundRobinBalancer{
-		Pool: pool,
-		Idx: -1,
-		Mu: sync.Mutex{},
+	return &RoundRobinBalancer{
+		pool: pool,
+		idx:  -1,
+		mu:   sync.Mutex{},
+	}
+}
+
+func NewLoadBalancer(strategy BalancerStrategy) *LoadBalancer {
+	return &LoadBalancer{
+		strategy: strategy,
 	}
 }
