@@ -13,16 +13,20 @@ func (sp *ServerPool) AddNewServer(server *Server) string {
 }
 
 func (sp *ServerPool) GetServer(uuid string) (*Server, error) {
+	sp.Mu.Lock()
+	defer sp.Mu.Unlock()
 	if server, ok := sp.Servers[uuid]; ok {
 		return server, nil
 	}
-	return nil, fmt.Errorf("This server %s not exist", uuid)
+	return nil, fmt.Errorf("this server %s not exist", uuid)
 }
 
 func (sp *ServerPool) GetAllServer() []*Server {
+	sp.Mu.Lock()
+	defer sp.Mu.Unlock()
 	var servers []*Server
-	for _ , s := range sp.Servers {
+	for _, s := range sp.Servers {
 		servers = append(servers, s)
 	}
-	return  servers
+	return servers
 }

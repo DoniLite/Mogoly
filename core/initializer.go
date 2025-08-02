@@ -8,3 +8,11 @@ func NewServerPool() *ServerPool {
 		Mu: sync.Mutex{},
 	}
 }
+
+func NewRoundRobinBalancer(pool *ServerPool) *RoundRobinBalancer {
+	return  &RoundRobinBalancer{
+		Pool: pool,
+		Idx: -1,
+		Mu: sync.Mutex{},
+	}
+}
