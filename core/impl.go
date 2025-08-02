@@ -2,11 +2,9 @@ package core
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -60,6 +58,7 @@ func (rb *RoundRobinBalancer) GetNextServer() (*Server, error) {
 //  Load Balancer
 
 func (lb *LoadBalancer) Serve(w http.ResponseWriter, r *http.Request) {
+	var targetURL *url.URL
 	server, err := lb.strategy.GetNextServer()
 
 	if err != nil {
@@ -67,7 +66,17 @@ func (lb *LoadBalancer) Serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetURL, err := url.Parse(server.URL)
+	targetURL, err = url.Parse(server.URL)
+
+	if server.URL == "" {
+		
+		targetURL, err = url.Parse(fmt.Sprintf("%s://%s:%d", server.Protocol, server.Host, server.Port))
+
+		if err != nil {
+			http.Error(w, "Invalid backend url", http.StatusInternalServerError)
+			return
+		}
+	}
 
 	if err != nil {
 		http.Error(w, "Invalid backend url", http.StatusInternalServerError)
@@ -95,32 +104,5 @@ func (lb *LoadBalancer) Serve(w http.ResponseWriter, r *http.Request) {
 
 	req.Header.Set("X-Forwarded-for", r.RemoteAddr)
 
-	client := &http.Client{
-		Timeout: time.Second * 60,
-	}
-
-	res, err := client.Do(req)
-
-	if err != nil {
-		http.Error(w, "Failed to reach the backend server", http.StatusBadGateway)
-	}
-
-	resBytes, err := io.ReadAll(res.Body)
-
-	if err != nil {
-		http.Error(w, "Error during the response body reading", http.StatusInternalServerError)
-		return
-	}
-
-	defer res.Body.Close()
-
-	for k, values := range res.Header {
-		for _, value := range values {
-			w.Header().Add(k, value)
-		}
-	}
-
-	w.WriteHeader(res.StatusCode)
-
-	fmt.Fprint(w, string(resBytes))
+	lb.proxy.ServeHTTP(w, req)
 }

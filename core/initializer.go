@@ -1,6 +1,10 @@
 package core
 
-import "sync"
+import (
+	"net/http/httputil"
+	"net/url"
+	"sync"
+)
 
 func NewServerPool() *ServerPool {
 	return &ServerPool{
@@ -17,8 +21,14 @@ func NewRoundRobinBalancer(pool *ServerPool) *RoundRobinBalancer {
 	}
 }
 
-func NewLoadBalancer(strategy BalancerStrategy) *LoadBalancer {
+func NewLoadBalancer(strategy BalancerStrategy, proxy *httputil.ReverseProxy) *LoadBalancer {
 	return &LoadBalancer{
 		strategy: strategy,
+		proxy:    proxy,
 	}
+}
+
+func NewProxy(target *url.URL) *httputil.ReverseProxy {
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	return proxy
 }
