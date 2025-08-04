@@ -6,15 +6,23 @@ import (
 	"time"
 )
 
+type LogType = int
+
+const (
+	LOG_INFO LogType = iota
+	LOG_DEBUG
+	LOG_ERROR
+)
+
 type Server struct {
-	ID              string    `json:"_" yaml:"_"`
-	Name            string    `json:"name,omitempty" yaml:"name,omitempty"`
-	Protocol        string    `json:"protocol,omitempty" yaml:"protocol,omitempty"`
-	Host            string    `json:"host,omitempty" yaml:"host,omitempty"`
-	Port            int       `json:"port,omitempty" yaml:"port,omitempty"`
-	URL             string    `json:"url,omitempty" yaml:"url,omitempty"`
-	IsHealthy       bool      `json:"is_healthy,omitempty" yaml:"is_healthy,omitempty"`
-	LastHealthCheck time.Time `json:"__" yaml:"__"`
+	ID              string    `json:"_,omitempty" yaml:"_,omitempty"`                   // THe server ID based on its registration order
+	Name            string    `json:"name,omitempty" yaml:"name,omitempty"`             // The server name
+	Protocol        string    `json:"protocol,omitempty" yaml:"protocol,omitempty"`     // The protocol for the server this field can be `http` or `https`
+	Host            string    `json:"host,omitempty" yaml:"host,omitempty"`             // The server host
+	Port            int       `json:"port,omitempty" yaml:"port,omitempty"`             // The port on which the server is running
+	URL             string    `json:"url,omitempty" yaml:"url,omitempty"`               // If this field is provided the URL will be used for request forwarding
+	IsHealthy       bool      `json:"is_healthy,omitempty" yaml:"is_healthy,omitempty"` // Specifying the server health check state
+	LastHealthCheck time.Time `json:"__,omitempty" yaml:"__,omitempty"`
 }
 
 type ServerPool struct {
@@ -32,17 +40,38 @@ type BalancerStrategy interface {
 	GetNextServer() (*Server, error)
 }
 
+type Logs struct {
+	logType LogType
+	message string
+}
+
 type LoadBalancer struct {
 	strategy BalancerStrategy
 	proxy    *httputil.ReverseProxy
+	Logs     chan Logs
 }
 
 type ProxyServer struct {
-	Host       string `json:"host" yaml:"host"`
-	ListenPort string `json:"listen_port" yaml:"listen_port"`
+	Name       string `json:"name" yaml:"name"`               // Specifying a proxy server name
+	Host       string `json:"host" yaml:"host"`               // The host to start the server
+	ListenPort string `json:"listen_port" yaml:"listen_port"` // The server Port
 }
 
 type Config struct {
-	Proxy   ProxyServer `json:"proxy" yaml:"proxy"`
-	Servers []Server    `json:"server" yaml:"server"`
+	Proxy   ProxyServer `json:"proxy" yaml:"proxy"`   // The Proxy config specification
+	Servers []Server    `json:"server" yaml:"server"` // The servers instances
+}
+
+// The result of a health checking process for a server
+type ServerStatus struct {
+	Name    string `json:"name" yaml:"name"`       // The server name
+	Url     string `json:"url" yaml:"url"`         // HealthCheck url
+	Healthy bool   `json:"healthy" yaml:"healthy"` // healthCheck status
+}
+
+type HealthCheckStatus struct {
+	Pass      []ServerStatus `json:"pass" yaml:"pass"` // Array of successful HealthCheck result
+	Fail      []ServerStatus `json:"fail" yaml:"fail"` // Array of failure HealthCheck Result
+	CheckTime time.Time
+	Duration  time.Duration
 }
