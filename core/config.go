@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -58,4 +59,28 @@ func ParseConfig(content []byte, format string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+func buildServerURL(server *Server) (string, error) {
+	url, err := url.Parse(server.URL)
+
+	if err != nil || server.URL == "" {
+		url, err = url.Parse(fmt.Sprintf("%s://%s:%d", server.Protocol, server.Host, server.Port))
+
+		if err != nil {
+			return "", nil
+		}
+	}
+
+	return url.String(), nil
+}
+
+func SerializeHealthCheckStatus(status HealthCheckStatus) (string, error) {
+	b, err := json.Marshal(status)
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }
