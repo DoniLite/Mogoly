@@ -53,7 +53,6 @@ func TestIntegration_LoadBalancerWithHealthCheck(t *testing.T) {
 }
 
 func TestIntegration_ConfigParsing(t *testing.T) {
-	// Test config parsing for both JSON and YAML
 	jsonContent := []byte(`{"proxy":{"name":"p1","host":"localhost","listen_port":"8080"},"server":[{"name":"s1","protocol":"http","host":"localhost","port":8080}]}`)
 	cfg, err := ParseConfig(jsonContent, "json")
 	assert.NoError(t, err)
