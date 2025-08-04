@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,6 +19,13 @@ func (sp *ServerPool) AddNewServer(server *Server) string {
 	server.ID = fmt.Sprint(serverId)
 	sp.servers[serverUUID] = server
 	return serverUUID
+}
+
+func (sp *ServerPool) DelServer(uid string) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+
+	delete(sp.servers, uid)
 }
 
 func (sp *ServerPool) GetServer(uuid string) (*Server, error) {
@@ -69,7 +77,7 @@ func (sp *ServerPool) GetServerUIDWithName(name string) (string, error) {
 	return foundedUID, nil
 }
 
-func (sp *ServerPool) CheckHealthAll() (HealthCheckStatus, error) {
+func (sp *ServerPool) CheckHealthAll() (*HealthCheckStatus, error) {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 	var healthChecker HealthCheckStatus
@@ -104,7 +112,68 @@ func (sp *ServerPool) CheckHealthAll() (HealthCheckStatus, error) {
 	duration := time.Since(healthCheckStartTime)
 	healthChecker.Duration = duration
 
-	return healthChecker, nil
+	return &healthChecker, nil
+}
+
+func (sp *ServerPool) CheckHealthAny(uid string) (*ServerStatus, error) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+
+	if server, ok := sp.servers[uid]; ok {
+		url, _ := buildServerURL(server)
+		if success, err := HealthChecker(server); !success || err != nil {
+			return &ServerStatus{
+				Name:    server.Name,
+				Url:     url,
+				Healthy: false,
+			}, err
+		}
+
+		return &ServerStatus{
+			Name:    server.Name,
+			Url:     url,
+			Healthy: true,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("no server found for the %s uid", uid)
+}
+
+func (sp *ServerPool) RollBack(servers []*Server) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	previousServer := maps.Clone(sp.servers)
+
+	for _, value := range servers {
+		sp.AddNewServer(value)
+	}
+
+	for k := range previousServer {
+		sp.DelServer(k)
+	}
+}
+
+func (sp *ServerPool) RollBackAny(uid string, server *Server) error {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+
+	if uid == "" && server != nil {
+		sp.AddNewServer(server)
+		return nil
+	}
+
+	if uid != "" && server != nil {
+		sp.DelServer(uid)
+		sp.AddNewServer(server)
+		return nil
+	}
+
+	if uid != "" && server == nil {
+		return fmt.Errorf("provide an uid %s but don't provide any server for the roll backing", uid)
+	}
+
+	return fmt.Errorf("invalid argument provided for uid %s and server %v", uid, server)
+
 }
 
 func (sp *ServerPool) GetAllServer() []*Server {

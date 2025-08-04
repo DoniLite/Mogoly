@@ -1,4 +1,4 @@
-module github.com/DoniLite/tiny_balencer/core
+module github.com/DoniLite/tiny_balancer/core
 
 go 1.24.4
 

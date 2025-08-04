@@ -75,7 +75,7 @@ func buildServerURL(server *Server) (string, error) {
 	return url.String(), nil
 }
 
-func SerializeHealthCheckStatus(status HealthCheckStatus) (string, error) {
+func SerializeHealthCheckStatus(status *HealthCheckStatus) (string, error) {
 	b, err := json.Marshal(status)
 
 	if err != nil {
