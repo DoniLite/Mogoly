@@ -25,6 +25,7 @@ func NewLoadBalancer(strategy BalancerStrategy, proxy *httputil.ReverseProxy) *L
 	return &LoadBalancer{
 		strategy: strategy,
 		proxy:    proxy,
+		Logs: make(chan Logs),
 	}
 }
 
