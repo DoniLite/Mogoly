@@ -211,7 +211,7 @@ func (rb *RoundRobinBalancer) GetNextServer() (*Server, error) {
 
 //  Load Balancer
 
-func (lb *LoadBalancer) Serve(w http.ResponseWriter, r *http.Request) {
+func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	lb.Logs <- Logs{
 		message: fmt.Sprintf("[Proxy]: New incoming request <- %s Method: %s", r.URL.Path, r.Method),
 		logType: LOG_INFO,
@@ -293,7 +293,7 @@ func (lb *LoadBalancer) Serve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	req.Header.Set("X-Forwarded-for", r.RemoteAddr)
+	req.Header.Set("X-Forwarded-For", r.RemoteAddr)
 
 	lb.Logs <- Logs{
 		message: fmt.Sprintf("[Proxy]: Forwarding new request <-> %s to the backend server ID: %s", req.URL.String(), server.ID),
