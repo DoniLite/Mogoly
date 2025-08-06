@@ -27,6 +27,7 @@ type Server struct {
 	URL             string    `json:"url,omitempty" yaml:"url,omitempty"`               // If this field is provided the URL will be used for request forwarding
 	IsHealthy       bool      `json:"is_healthy,omitempty" yaml:"is_healthy,omitempty"` // Specifying the server health check state
 	LastHealthCheck time.Time `json:"__,omitempty" yaml:"__,omitempty"`
+	Proxy           *httputil.ReverseProxy
 }
 
 type ServerPool struct {
@@ -51,7 +52,6 @@ type Logs struct {
 
 type LoadBalancer struct {
 	strategy BalancerStrategy
-	proxy    *httputil.ReverseProxy
 	Logs     chan Logs
 }
 

@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -16,6 +17,25 @@ import (
 )
 
 // Server pooling implementation
+
+func (server *Server) UpgradeProxy() error {
+	if server.Proxy != nil {
+		return nil
+	}
+	serverUrl, err := buildServerURL(server)
+	if err != nil {
+		return err
+	}
+	proxyUrl, err := url.Parse(serverUrl)
+	if err != nil {
+		return err
+	}
+	proxy := NewProxy(proxyUrl)
+
+	server.Proxy = proxy
+
+	return nil
+}
 
 func (sp *ServerPool) AddNewServer(server *Server) string {
 	serverUUID := uuid.NewString()
@@ -79,6 +99,23 @@ func (sp *ServerPool) GetServerUIDWithName(name string) (string, error) {
 	}
 
 	return foundedUID, nil
+}
+
+func (sp *ServerPool) GetServerUIDWithSelf(server *Server) string {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+
+	var detectedUID string
+
+	for uid, s := range sp.servers {
+		if reflect.ValueOf(s).Pointer() == reflect.ValueOf(server).Pointer() {
+			detectedUID = uid
+			break
+		}
+		continue
+	}
+
+	return detectedUID
 }
 
 func (sp *ServerPool) CheckHealthAll() (*HealthCheckStatus, error) {
@@ -240,6 +277,15 @@ func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	err = server.UpgradeProxy()
+
+	if err != nil {
+		lb.Logs <- Logs{
+			message: "Failed to upgrade the server proxy",
+			logType: LOG_ERROR,
+		}
+	}
+
 	targetURL, err = url.Parse(server.URL)
 
 	if server.URL == "" || err != nil {
@@ -300,5 +346,5 @@ func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logType: LOG_INFO,
 	}
 
-	lb.proxy.ServeHTTP(w, req)
+	server.Proxy.ServeHTTP(w, req)
 }
