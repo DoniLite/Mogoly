@@ -5,11 +5,12 @@
 package core
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
-	"net/http"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -81,13 +82,49 @@ func TestLoadBalancer_Serve(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	u, _ := url.Parse(backend.URL)
 	server := &Server{Name: "backend", URL: backend.URL}
 	sp := NewServerPool()
 	sp.AddNewServer(server)
 	rr := NewRoundRobinBalancer(sp)
-	proxy := NewProxy(u)
-	lb := NewLoadBalancer(rr, proxy)
+	lb := NewLoadBalancer(rr)
+	lb.Logs = make(chan Logs, 10)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	lb.ServeHTTP(w, req)
+	resp := w.Result()
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestServerUpgradeProxy(t *testing.T) {
+	sp := NewServerPool()
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
+	}))
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
+	}))
+
+	defer backend1.Close()
+	defer backend2.Close()
+	server1 := &Server{Name: "test1", URL: backend1.URL}
+	sever2 := &Server{Name: "test2", URL: backend2.URL}
+	backend1Uri, err := url.Parse(backend1.URL)
+
+	sp.AddNewServer(server1)
+	sp.AddNewServer(sever2)
+
+	assert.Equal(t, nil, err)
+
+	backend1Proxy := NewProxy(backend1Uri)
+	server1.Proxy = backend1Proxy
+
+	err = server1.UpgradeProxy()
+
+	assert.Equal(t, nil, err)
+
+	rr := NewRoundRobinBalancer(sp)
+	lb := NewLoadBalancer(rr)
 	lb.Logs = make(chan Logs, 10)
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -113,8 +150,8 @@ func TestBuildServerURL(t *testing.T) {
 
 func TestSerializeHealthCheckStatus(t *testing.T) {
 	status := &HealthCheckStatus{
-		Pass: []ServerStatus{{Name: "s1", Url: "u1", Healthy: true}},
-		Fail: []ServerStatus{{Name: "s2", Url: "u2", Healthy: false}},
+		Pass:     []ServerStatus{{Name: "s1", Url: "u1", Healthy: true}},
+		Fail:     []ServerStatus{{Name: "s2", Url: "u2", Healthy: false}},
 		Duration: time.Second,
 	}
 	s, err := SerializeHealthCheckStatus(status)
