@@ -47,7 +47,7 @@ func TestIntegration_LoadBalancerWithHealthCheck(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	lb.Serve(w, req)
+	lb.ServeHTTP(w, req)
 	resp := w.Result()
 	assert.Equal(t, 200, resp.StatusCode)
 }
