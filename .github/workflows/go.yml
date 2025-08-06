@@ -1,0 +1,54 @@
+name: Tiny Balancer Test and Lint
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    name: Build & Test All Modules
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.24"
+
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Find Go Modules
+        id: find-modules
+        run: |
+          echo "modules=$(find . -name 'go.mod' -not -path './go.work' -exec dirname {} \; | tr '\n' ' ')" >> $GITHUB_OUTPUT
+
+      - name: Run go test in each module
+        run: |
+          for module in ${{ steps.find-modules.outputs.modules }}; do
+            echo "📦 Testing $module"
+            cd $module
+            go mod tidy
+            go test -v -race -cover ./...
+            cd -
+          done
+
+      - name: Run golangci-lint in each module
+        run: |
+          for module in ${{ steps.find-modules.outputs.modules }}; do
+            echo "🔍 Linting $module"
+            cd $module
+            golangci-lint run --timeout=2m
+            cd -
+          done
