@@ -1,21 +1,54 @@
+// Copyright 2025 DoniLite. All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
 package sync
 
-import "github.com/gorilla/websocket"
+import (
+	"net/http"
+	"sync"
+
+	"github.com/gorilla/websocket"
+)
 
 type Client struct {
-	conn *websocket.Conn
+	conn *connection // Shared wrapper for WebSocket connection
+
+	// Incoming messages are pushed here by the readPump.
+	// Users can read from this channel to process incoming messages.
+	Incoming chan *Message // Public channel for incoming messages
+
+	mu          sync.Mutex
+	isConnected bool
+	dialer      *websocket.Dialer
+	connUrl     string
+	headers     http.Header // For authentication or other headers
+
+	// pendingRequests holds channels for requests that are waiting for a response.
+	// Keyed by RequestID, so we can correlate responses.
+	// This allows us to handle responses to specific requests.
+	pendingRequests map[string]chan *Message
+	pendingMu       sync.RWMutex
 }
 
 type HandlerFunc func(conn *websocket.Conn, msg Message)
 
 type Server struct {
 	upgrader websocket.Upgrader
-	onMsg    HandlerFunc
+	hub      *Hub
 }
 
+type ErrorPayload struct {
+	Code    int    `json:"code,omitempty"`
+	Details string `json:"details"`
+}
+
+// Represents a message payload sending between the server and the client
 type Message struct {
-	Action string      `json:"action"`
-	Data   interface{} `json:"data"`
+	RequestID string `json:"request_id"`
+	Action    Action `json:"action"`
+	Meta      []byte `json:"meta"`
+	Error     string `json:"error"`
 }
 
 type RunTaskPayload struct {

@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
 )
 
@@ -23,8 +22,6 @@ func TestIntegration_LoadBalancerWithHealthCheck(t *testing.T) {
 		http.Error(w, "fail", http.StatusInternalServerError)
 	}))
 	defer unhealthy.Close()
-
-	uHealthy, _ := url.Parse(healthy.URL)
 
 	serverHealthy := &Server{Name: "healthy", URL: healthy.URL}
 	serverUnhealthy := &Server{Name: "unhealthy", URL: unhealthy.URL}
@@ -41,8 +38,7 @@ func TestIntegration_LoadBalancerWithHealthCheck(t *testing.T) {
 
 	// Use only healthy server for load balancer
 	rr := NewRoundRobinBalancer(sp)
-	proxy := NewProxy(uHealthy)
-	lb := NewLoadBalancer(rr, proxy)
+	lb := NewLoadBalancer(rr)
 	lb.Logs = make(chan Logs, 10)
 
 	req := httptest.NewRequest("GET", "/", nil)

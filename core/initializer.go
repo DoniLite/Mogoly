@@ -25,10 +25,9 @@ func NewRoundRobinBalancer(pool *ServerPool) *RoundRobinBalancer {
 	}
 }
 
-func NewLoadBalancer(strategy BalancerStrategy, proxy *httputil.ReverseProxy) *LoadBalancer {
+func NewLoadBalancer(strategy BalancerStrategy) *LoadBalancer {
 	return &LoadBalancer{
 		strategy: strategy,
-		proxy:    proxy,
 		Logs: make(chan Logs),
 	}
 }
