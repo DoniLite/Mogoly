@@ -19,14 +19,14 @@ const (
 )
 
 type Server struct {
-	ID              string    `json:"_,omitempty" yaml:"_,omitempty"`                   // THe server ID based on its registration order
-	Name            string    `json:"name,omitempty" yaml:"name,omitempty"`             // The server name
-	Protocol        string    `json:"protocol,omitempty" yaml:"protocol,omitempty"`     // The protocol for the server this field can be `http` or `https`
-	Host            string    `json:"host,omitempty" yaml:"host,omitempty"`             // The server host
-	Port            int       `json:"port,omitempty" yaml:"port,omitempty"`             // The port on which the server is running
-	URL             string    `json:"url,omitempty" yaml:"url,omitempty"`               // If this field is provided the URL will be used for request forwarding
-	IsHealthy       bool      `json:"is_healthy,omitempty" yaml:"is_healthy,omitempty"` // Specifying the server health check state
-	LastHealthCheck time.Time `json:"__,omitempty" yaml:"__,omitempty"`
+	ID              string // THe server ID based on its registration order
+	Name            string `json:"name,omitempty" yaml:"name,omitempty"`             // The server name
+	Protocol        string `json:"protocol,omitempty" yaml:"protocol,omitempty"`     // The protocol for the server this field can be `http` or `https`
+	Host            string `json:"host,omitempty" yaml:"host,omitempty"`             // The server host
+	Port            int    `json:"port,omitempty" yaml:"port,omitempty"`             // The port on which the server is running
+	URL             string `json:"url,omitempty" yaml:"url,omitempty"`               // If this field is provided the URL will be used for request forwarding
+	IsHealthy       bool   `json:"is_healthy,omitempty" yaml:"is_healthy,omitempty"` // Specifying the server health check state
+	LastHealthCheck time.Time
 	Proxy           *httputil.ReverseProxy
 }
 
