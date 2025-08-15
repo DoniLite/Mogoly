@@ -9,6 +9,18 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
+	"time"
+)
+
+
+var (
+	requestsPerMinute = 5
+	rateLimitWindow   = time.Minute
+
+	// map[ip] = []timestamps
+	visitors = make(map[string][]time.Time)
+	mu       sync.Mutex
 )
 
 // ping returns a "pong" message consider registering this Handler for the health checking logic
@@ -52,4 +64,63 @@ func HealthChecker(server *Server) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func RateLimiterMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := r.RemoteAddr // ou r.Header["X-Forwarded-For"][0] si tu es derrière un proxy
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		now := time.Now()
+		requestTimes := visitors[ip]
+
+		// Nettoyer les anciennes requêtes (hors de la fenêtre)
+		var filtered []time.Time
+		for _, t := range requestTimes {
+			if now.Sub(t) < rateLimitWindow {
+				filtered = append(filtered, t)
+			}
+		}
+
+		// Mise à jour de l’historique
+		if len(filtered) >= requestsPerMinute {
+			http.Error(w, "Trop de requêtes, réessaie plus tard", http.StatusTooManyRequests)
+			return
+		}
+
+		filtered = append(filtered, now)
+		visitors[ip] = filtered
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func CleanupVisitors() {
+	for {
+		time.Sleep(time.Minute)
+		mu.Lock()
+		for ip, timestamps := range visitors {
+			var filtered []time.Time
+			for _, t := range timestamps {
+				if time.Since(t) < rateLimitWindow {
+					filtered = append(filtered, t)
+				}
+			}
+			if len(filtered) == 0 {
+				delete(visitors, ip)
+			} else {
+				visitors[ip] = filtered
+			}
+		}
+		mu.Unlock()
+	}
+}
+
+func ChainMiddleware(handler http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
+	for i := len(middlewares) - 1; i >= 0; i-- { // important : on les applique dans l'ordre
+		handler = middlewares[i](handler)
+	}
+	return handler
 }
