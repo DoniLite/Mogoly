@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 /*
-# Tiny Balancer Core
+# Mogoly Core
 
 The core package is the main package of the tiny_balancer software  
 it provides the main features logic for:

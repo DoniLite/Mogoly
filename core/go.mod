@@ -1,4 +1,4 @@
-module github.com/DoniLite/tiny_balancer/core
+module github.com/DoniLite/Mogoly/core
 
 go 1.24.4
 
