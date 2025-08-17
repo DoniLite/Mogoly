@@ -6,14 +6,11 @@ package core
 
 import (
 	"fmt"
-	"maps"
 	"net/http"
 	"net/url"
-	"reflect"
+	"slices"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // Server pooling implementation
@@ -37,101 +34,50 @@ func (server *Server) UpgradeProxy() error {
 	return nil
 }
 
-func (sp *ServerPool) AddNewServer(server *Server) string {
-	serverUUID := uuid.NewString()
-	serverId := len(sp.servers) - 1
-	server.ID = fmt.Sprint(serverId)
-	sp.servers[serverUUID] = server
-	return serverUUID
+func (server *Server) AddNewBalancingServer(bs *Server) {
+	server.BalancingServers = append(server.BalancingServers, bs)
 }
 
-func (sp *ServerPool) DelServer(uid string) {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
+func (server *Server) DelBalancingServer(name string) {
+	var filteredServers []*Server
 
-	delete(sp.servers, uid)
-}
-
-func (sp *ServerPool) GetServer(uuid string) (*Server, error) {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
-	if server, ok := sp.servers[uuid]; ok {
-		return server, nil
-	}
-	return nil, fmt.Errorf("this server %s not exist", uuid)
-}
-
-func (sp *ServerPool) GetServerWithName(name string) (*Server, error) {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
-	var foundedServer *Server
-
-	for _, server := range sp.servers {
-		if server.Name == name {
-			foundedServer = server
-			break
+	for _, s := range server.BalancingServers {
+		if s.Name != name {
+			filteredServers = append(filteredServers, s)
 		}
 		continue
 	}
 
-	if foundedServer == nil {
-		return nil, fmt.Errorf("Server with name %s doesn't exist", name)
-	}
-
-	return foundedServer, nil
+	server.BalancingServers = filteredServers
 }
 
-func (sp *ServerPool) GetServerUIDWithName(name string) (string, error) {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
-	var foundedUID string
+func (server *Server) GetServer(name string) *Server {
+	var targetServer *Server
 
-	for uid, server := range sp.servers {
-		if server.Name == name {
-			foundedUID = uid
-			break
+	for _, s := range server.BalancingServers {
+		if s.Name == name {
+			targetServer = s
 		}
 		continue
 	}
 
-	if foundedUID == "" {
-		return "", fmt.Errorf("Server with name %s doesn't exist", name)
-	}
-
-	return foundedUID, nil
+	return targetServer
 }
 
-func (sp *ServerPool) GetServerUIDWithSelf(server *Server) string {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
-
-	var detectedUID string
-
-	for uid, s := range sp.servers {
-		if reflect.ValueOf(s).Pointer() == reflect.ValueOf(server).Pointer() {
-			detectedUID = uid
-			break
-		}
-		continue
-	}
-
-	return detectedUID
-}
-
-func (sp *ServerPool) CheckHealthAll() (*HealthCheckStatus, error) {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
+func (server *Server) CheckHealthAll() (*HealthCheckStatus, error) {
+	server.mu.Lock()
+	defer server.mu.Unlock()
 	var healthChecker HealthCheckStatus
 	healthCheckStartTime := time.Now()
 
-	for uid, server := range sp.servers {
+	for uid, server := range server.BalancingServers {
 		serverHealCheckTime := time.Now()
 		success, err := HealthChecker(server)
 		url, _ := buildServerURL(server)
 
 		if err != nil || !success {
-			sp.servers[uid].IsHealthy = false
-			sp.servers[uid].LastHealthCheck = serverHealCheckTime
+			server.BalancingServers[uid].IsHealthy = false
+			server.BalancingServers[uid].LastHealthCheck = &serverHealCheckTime
 
 			healthChecker.Fail = append(healthChecker.Fail, ServerStatus{
 				Name:    server.Name,
@@ -139,8 +85,8 @@ func (sp *ServerPool) CheckHealthAll() (*HealthCheckStatus, error) {
 				Healthy: false,
 			})
 		} else {
-			sp.servers[uid].IsHealthy = true
-			sp.servers[uid].LastHealthCheck = serverHealCheckTime
+			server.BalancingServers[uid].IsHealthy = true
+			server.BalancingServers[uid].LastHealthCheck = &serverHealCheckTime
 
 			healthChecker.Pass = append(healthChecker.Pass, ServerStatus{
 				Name:    server.Name,
@@ -156,164 +102,214 @@ func (sp *ServerPool) CheckHealthAll() (*HealthCheckStatus, error) {
 	return &healthChecker, nil
 }
 
-func (sp *ServerPool) CheckHealthAny(uid string) (*ServerStatus, error) {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
+func (server *Server) CheckHealthAny(name string) (*ServerStatus, error) {
+	server.mu.Lock()
+	defer server.mu.Unlock()
 
-	if server, ok := sp.servers[uid]; ok {
-		url, _ := buildServerURL(server)
-		if success, err := HealthChecker(server); !success || err != nil {
+	if targetServer := server.GetServer(name); targetServer != nil {
+		url, _ := buildServerURL(targetServer)
+		if success, err := HealthChecker(targetServer); !success || err != nil {
 			return &ServerStatus{
-				Name:    server.Name,
+				Name:    targetServer.Name,
 				Url:     url,
 				Healthy: false,
 			}, err
 		}
 
 		return &ServerStatus{
-			Name:    server.Name,
+			Name:    targetServer.Name,
 			Url:     url,
 			Healthy: true,
 		}, nil
 	}
 
-	return nil, fmt.Errorf("no server found for the %s uid", uid)
+	return nil, fmt.Errorf("no server found for the %s name", name)
 }
 
-func (sp *ServerPool) RollBack(servers []*Server) {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
-	previousServer := maps.Clone(sp.servers)
+func (server *Server) CheckHealthSelf() (*ServerStatus, error) {
+	url, _ := buildServerURL(server)
+	if success, err := HealthChecker(server); !success || err != nil {
+		return &ServerStatus{
+			Name:    server.Name,
+			Url:     url,
+			Healthy: false,
+		}, err
+	}
+
+	return &ServerStatus{
+		Name:    server.Name,
+		Url:     url,
+		Healthy: true,
+	}, nil
+}
+
+func (server *Server) RollBack(servers []*Server) {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	previousServer := slices.Clone(server.BalancingServers)
 
 	for _, value := range servers {
-		sp.AddNewServer(value)
+		server.AddNewBalancingServer(value)
 	}
 
-	for k := range previousServer {
-		sp.DelServer(k)
+	for _, s := range previousServer {
+		server.DelBalancingServer(s.Name)
 	}
 }
 
-func (sp *ServerPool) RollBackAny(uid string, server *Server) error {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
+func (server *Server) RollBackAny(name string, newServer *Server) error {
+	server.mu.Lock()
+	defer server.mu.Unlock()
 
-	if uid == "" && server != nil {
-		sp.AddNewServer(server)
+	if name == "" && newServer != nil {
+		server.AddNewBalancingServer(newServer)
 		return nil
 	}
 
-	if uid != "" && server != nil {
-		sp.DelServer(uid)
-		sp.AddNewServer(server)
+	if name != "" && newServer != nil {
+		server.DelBalancingServer(name)
+		server.AddNewBalancingServer(newServer)
 		return nil
 	}
 
-	if uid != "" && server == nil {
-		return fmt.Errorf("provide an uid %s but don't provide any server for the roll backing", uid)
+	if name != "" && newServer == nil {
+		return fmt.Errorf("provide a name %s but don't provide any server for the roll backing", name)
 	}
 
-	return fmt.Errorf("invalid argument provided for uid %s and server %v", uid, server)
+	return fmt.Errorf("invalid argument provided for name %s and server %v", name, newServer)
 
-}
-
-func (sp *ServerPool) GetAllServer() []*Server {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
-	var servers []*Server
-	for _, s := range sp.servers {
-		servers = append(servers, s)
-	}
-	return servers
 }
 
 // Round Robin Balancer implementation
 
-func (rb *RoundRobinBalancer) GetNextServer() (*Server, error) {
-	servers := rb.pool.GetAllServer()
+func (server *Server) GetNextServer() (*Server, error) {
 
-	if len(servers) == 0 {
-		return nil, fmt.Errorf("no server found try to add server to your Server pool before")
-	}
+	server.mu.Lock()
+	defer server.mu.Unlock()
 
-	rb.mu.Lock()
-	defer rb.mu.Unlock()
+	server.idx = (server.idx + 1) % len(server.BalancingServers)
 
-	rb.idx = (rb.idx + 1) % len(servers)
-
-	selectedServer := servers[rb.idx]
+	selectedServer := server.BalancingServers[server.idx]
 
 	return selectedServer, nil
 }
 
 //  Load Balancer
 
-func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	lb.Logs <- Logs{
+func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var balancingServer *Server
+	var err error
+	var targetURL *url.URL
+	var req *http.Request
+	var targetPath string
+
+	server.Logs <- Logs{
 		message: fmt.Sprintf("[Proxy]: New incoming request <- %s Method: %s", r.URL.Path, r.Method),
 		logType: LOG_INFO,
 	}
-	var targetURL *url.URL
-	lb.Logs <- Logs{
+
+	server.Logs <- Logs{
 		message: "[Load Balancer]: Trying to get the next server",
 		logType: LOG_ERROR,
 	}
-	server, err := lb.strategy.GetNextServer()
 
-	if err != nil {
-		lb.Logs <- Logs{
-			message: "[Load Balancer]: Failed to get the next server new attempt",
-			logType: LOG_ERROR,
-		}
-		// Trying to get the next server after this
-		server, err = lb.strategy.GetNextServer()
+	if len(server.BalancingServers) > 1 {
+		balancingServer, err = server.GetNextServer()
+
 		if err != nil {
-			lb.Logs <- Logs{
-				message: "[Load Balancer]: Failed to get the next server (second attempt)",
+			server.Logs <- Logs{
+				message: "[Load Balancer]: Failed to get the next server new attempt",
 				logType: LOG_ERROR,
 			}
-			http.Error(w, "Internal server error", 500)
-			return
+			// Trying to get the next server after this
+			server, err = server.GetNextServer()
+			if err != nil {
+				server.Logs <- Logs{
+					message: "[Load Balancer]: Failed to get the next server (second attempt)",
+					logType: LOG_ERROR,
+				}
+				http.Error(w, "Internal server error", 500)
+				return
+			}
+		}
+
+		err = balancingServer.UpgradeProxy()
+
+		if err != nil {
+			server.Logs <- Logs{
+				message: "Failed to upgrade the server proxy",
+				logType: LOG_ERROR,
+			}
 		}
 	}
 
 	err = server.UpgradeProxy()
 
 	if err != nil {
-		lb.Logs <- Logs{
+		server.Logs <- Logs{
 			message: "Failed to upgrade the server proxy",
 			logType: LOG_ERROR,
 		}
 	}
 
-	targetURL, err = url.Parse(server.URL)
+	if balancingServer != nil {
+		targetURL, err = url.Parse(balancingServer.URL)
 
-	if server.URL == "" || err != nil {
+		if server.URL == "" || err != nil {
 
-		targetURL, err = url.Parse(fmt.Sprintf("%s://%s:%d", server.Protocol, server.Host, server.Port))
+			targetURL, err = url.Parse(fmt.Sprintf("%s://%s:%d", balancingServer.Protocol, balancingServer.Host, balancingServer.Port))
+
+			if err != nil {
+				server.Logs <- Logs{
+					message: fmt.Sprintf("[Proxy]: Invalid url: %s from the incoming request [Host] %s", targetURL, r.Host),
+					logType: LOG_ERROR,
+				}
+				http.Error(w, "Invalid backend url", http.StatusInternalServerError)
+				return
+			}
+		}
 
 		if err != nil {
-			lb.Logs <- Logs{
+			server.Logs <- Logs{
 				message: fmt.Sprintf("[Proxy]: Invalid url: %s from the incoming request [Host] %s", targetURL, r.Host),
 				logType: LOG_ERROR,
 			}
 			http.Error(w, "Invalid backend url", http.StatusInternalServerError)
 			return
 		}
-	}
 
-	if err != nil {
-		lb.Logs <- Logs{
-			message: fmt.Sprintf("[Proxy]: Invalid url: %s from the incoming request [Host] %s", targetURL, r.Host),
-			logType: LOG_ERROR,
+		targetPath = strings.TrimPrefix(targetURL.String(), "/") + r.URL.Path
+	} else {
+
+		targetURL, err = url.Parse(server.URL)
+
+		if server.URL == "" || err != nil {
+
+			targetURL, err = url.Parse(fmt.Sprintf("%s://%s:%d", server.Protocol, server.Host, server.Port))
+
+			if err != nil {
+				server.Logs <- Logs{
+					message: fmt.Sprintf("[Proxy]: Invalid url: %s from the incoming request [Host] %s", targetURL, r.Host),
+					logType: LOG_ERROR,
+				}
+				http.Error(w, "Invalid backend url", http.StatusInternalServerError)
+				return
+			}
 		}
-		http.Error(w, "Invalid backend url", http.StatusInternalServerError)
-		return
+
+		if err != nil {
+			server.Logs <- Logs{
+				message: fmt.Sprintf("[Proxy]: Invalid url: %s from the incoming request [Host] %s", targetURL, r.Host),
+				logType: LOG_ERROR,
+			}
+			http.Error(w, "Invalid backend url", http.StatusInternalServerError)
+			return
+		}
+
+		targetPath = strings.TrimPrefix(targetURL.String(), "/") + r.URL.Path
 	}
 
-	targetPath := strings.TrimPrefix(targetURL.String(), "/") + r.URL.Path
-
-	lb.Logs <- Logs{
+	server.Logs <- Logs{
 		message: fmt.Sprintf("[Proxy]: Preparing new request for the URI: %s", targetPath),
 		logType: LOG_INFO,
 	}
@@ -322,10 +318,10 @@ func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		targetPath += "?" + r.URL.RawQuery
 	}
 
-	req, err := http.NewRequest(r.Method, targetPath, r.Body)
+	req, err = http.NewRequest(r.Method, targetPath, r.Body)
 
 	if err != nil {
-		lb.Logs <- Logs{
+		server.Logs <- Logs{
 			message: "[Fatal]: New forwarded request creation failed",
 			logType: LOG_ERROR,
 		}
@@ -341,10 +337,10 @@ func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	req.Header.Set("X-Forwarded-For", r.RemoteAddr)
 
-	lb.Logs <- Logs{
+	server.Logs <- Logs{
 		message: fmt.Sprintf("[Proxy]: Forwarding new request <-> %s to the backend server ID: %s", req.URL.String(), server.ID),
 		logType: LOG_INFO,
 	}
 
-	server.Proxy.ServeHTTP(w, req)
+	balancingServer.Proxy.ServeHTTP(w, req)
 }

@@ -13,7 +13,6 @@ import (
 	"time"
 )
 
-
 var (
 	requestsPerMinute = 5
 	rateLimitWindow   = time.Minute
@@ -66,35 +65,47 @@ func HealthChecker(server *Server) (bool, error) {
 	return true, nil
 }
 
-func RateLimiterMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := r.RemoteAddr // ou r.Header["X-Forwarded-For"][0] si tu es derrière un proxy
+type RateLimitMiddlewareConfig struct {
+	ReqPerMinute int
+	LimitWindow time.Duration
+}
 
-		mu.Lock()
-		defer mu.Unlock()
+func RateLimiterMiddleware(config *RateLimitMiddlewareConfig) func(next http.Handler) http.Handler {
+	if config.ReqPerMinute != 0 {
+		requestsPerMinute = config.ReqPerMinute
+	}
 
-		now := time.Now()
-		requestTimes := visitors[ip]
+	if config.LimitWindow != 0 {
+		rateLimitWindow = config.LimitWindow
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := r.RemoteAddr // or r.Header["X-Forwarded-For"][0] when the request comes from proxy
 
-		// Nettoyer les anciennes requêtes (hors de la fenêtre)
-		var filtered []time.Time
-		for _, t := range requestTimes {
-			if now.Sub(t) < rateLimitWindow {
-				filtered = append(filtered, t)
+			mu.Lock()
+			defer mu.Unlock()
+
+			now := time.Now()
+			requestTimes := visitors[ip]
+
+			var filtered []time.Time
+			for _, t := range requestTimes {
+				if now.Sub(t) < rateLimitWindow {
+					filtered = append(filtered, t)
+				}
 			}
-		}
 
-		// Mise à jour de l’historique
-		if len(filtered) >= requestsPerMinute {
-			http.Error(w, "Trop de requêtes, réessaie plus tard", http.StatusTooManyRequests)
-			return
-		}
+			if len(filtered) >= requestsPerMinute {
+				http.Error(w, "Trop de requêtes, réessaie plus tard", http.StatusTooManyRequests)
+				return
+			}
 
-		filtered = append(filtered, now)
-		visitors[ip] = filtered
+			filtered = append(filtered, now)
+			visitors[ip] = filtered
 
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func CleanupVisitors() {
@@ -119,7 +130,7 @@ func CleanupVisitors() {
 }
 
 func ChainMiddleware(handler http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
-	for i := len(middlewares) - 1; i >= 0; i-- { // important : on les applique dans l'ordre
+	for i := len(middlewares) - 1; i >= 0; i-- {
 		handler = middlewares[i](handler)
 	}
 	return handler

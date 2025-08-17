@@ -19,27 +19,26 @@ const (
 )
 
 type Server struct {
-	ID              string // THe server ID based on its registration order
-	Name            string `json:"name,omitempty" yaml:"name,omitempty"`             // The server name
-	Protocol        string `json:"protocol,omitempty" yaml:"protocol,omitempty"`     // The protocol for the server this field can be `http` or `https`
-	Host            string `json:"host,omitempty" yaml:"host,omitempty"`             // The server host
-	Port            int    `json:"port,omitempty" yaml:"port,omitempty"`             // The port on which the server is running
-	URL             string `json:"url,omitempty" yaml:"url,omitempty"`               // If this field is provided the URL will be used for request forwarding
-	IsHealthy       bool   `json:"is_healthy,omitempty" yaml:"is_healthy,omitempty"` // Specifying the server health check state
-	LastHealthCheck time.Time
-	Proxy           *httputil.ReverseProxy
+	ID               string    // THe server ID based on its registration order
+	Name             string    `json:"name,omitempty" yaml:"name,omitempty"`             // The server name
+	Protocol         string    `json:"protocol,omitempty" yaml:"protocol,omitempty"`     // The protocol for the server this field can be `http` or `https`
+	Host             string    `json:"host,omitempty" yaml:"host,omitempty"`             // The server host
+	Port             int       `json:"port,omitempty" yaml:"port,omitempty"`             // The port on which the server is running
+	URL              string    `json:"url,omitempty" yaml:"url,omitempty"`               // If this field is provided the URL will be used for request forwarding
+	IsHealthy        bool      `json:"is_healthy,omitempty" yaml:"is_healthy,omitempty"` // Specifying the server health check state
+	BalancingServers []*Server `json:"balance,omitempty" yaml:"balance,omitempty"`       // If specified these servers will be used for load balancing request
+	LastHealthCheck  *time.Time
+	Proxy            *httputil.ReverseProxy
+	mu               sync.Mutex
+	idx              int
+	Logs             chan Logs
 }
 
-type ServerPool struct {
-	servers map[string]*Server
-	mu      sync.Mutex
+type Middleware struct {
+	Name   string `json:"name" yaml:"name"`
+	Config any    `json:"config,omitempty" yaml:"config,omitempty"`
 }
 
-type RoundRobinBalancer struct {
-	pool *ServerPool // Reference to the server pooling object
-	mu   sync.Mutex
-	idx  int // The last selected server index
-}
 
 type BalancerStrategy interface {
 	GetNextServer() (*Server, error)
@@ -50,20 +49,11 @@ type Logs struct {
 	message string
 }
 
-type LoadBalancer struct {
-	strategy BalancerStrategy
-	Logs     chan Logs
-}
-
-type ProxyServer struct {
-	Name       string `json:"name" yaml:"name"`               // Specifying a proxy server name
-	Host       string `json:"host" yaml:"host"`               // The host to start the server
-	ListenPort string `json:"listen_port" yaml:"listen_port"` // The server Port
-}
-
 type Config struct {
-	Proxy   ProxyServer `json:"proxy" yaml:"proxy"`   // The Proxy config specification
-	Servers []Server    `json:"server" yaml:"server"` // The servers instances
+	Servers             []Server     `json:"server" yaml:"server"` // The servers instances
+	HealthCheckInterval int          `json:"healthcheck_interval,omitempty" yaml:"healthcheck_interval,omitempty"`
+	LogOutput           string       `json:"log_output,omitempty" yaml:"log_output,omitempty"`
+	Middlewares         []Middleware `json:"middlewares,omitempty" yaml:"middlewares,omitempty"`
 }
 
 // The result of a health checking process for a server
