@@ -1,3 +1,3 @@
-module github.com/DoniLite/tiny_balancer/cli
+module github.com/DoniLite/Mogoly/cli
 
 go 1.24.4
