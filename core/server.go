@@ -67,17 +67,22 @@ func HealthChecker(server *Server) (bool, error) {
 
 type RateLimitMiddlewareConfig struct {
 	ReqPerMinute int
-	LimitWindow time.Duration
+	LimitWindow  time.Duration
 }
 
-func RateLimiterMiddleware(config *RateLimitMiddlewareConfig) func(next http.Handler) http.Handler {
-	if config.ReqPerMinute != 0 {
-		requestsPerMinute = config.ReqPerMinute
+func RateLimiterMiddleware(config any) func(next http.Handler) http.Handler {
+
+	conf, ok := config.(*RateLimitMiddlewareConfig)
+	if !ok {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(w, r)
+			})
+		}
 	}
 
-	if config.LimitWindow != 0 {
-		rateLimitWindow = config.LimitWindow
-	}
+	requestsPerMinute := conf.ReqPerMinute
+	rateLimitWindow := conf.LimitWindow
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip := r.RemoteAddr // or r.Header["X-Forwarded-For"][0] when the request comes from proxy
