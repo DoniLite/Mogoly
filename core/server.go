@@ -7,6 +7,7 @@ package core
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"sync"
@@ -74,6 +75,7 @@ func RateLimiterMiddleware(config any) func(next http.Handler) http.Handler {
 
 	conf, ok := config.(*RateLimitMiddlewareConfig)
 	if !ok {
+		log.Printf("WARNING: RateLimiterMiddleware received config of unexpected type (%T). Defaulting to passthrough handler.", config)
 		return func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				next.ServeHTTP(w, r)

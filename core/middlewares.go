@@ -10,6 +10,6 @@ var MiddlewaresList MiddlewareSets = MiddlewareSets{
 		conf any
 	}{
 		fn:   RateLimiterMiddleware,
-		conf: &RateLimitMiddlewareConfig{},
+		conf: RateLimitMiddlewareConfig{},
 	},
 }
