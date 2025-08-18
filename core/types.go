@@ -5,6 +5,7 @@
 package core
 
 import (
+	"net/http"
 	"net/http/httputil"
 	"sync"
 	"time"
@@ -68,4 +69,13 @@ type HealthCheckStatus struct {
 	Fail      []ServerStatus `json:"fail" yaml:"fail"` // Array of failure HealthCheck Result
 	CheckTime time.Time
 	Duration  time.Duration
+}
+
+type MogolyMiddleware func(config any) func(next http.Handler) http.Handler
+
+type MiddleWareName string
+
+type MiddlewareSets map[MiddleWareName]struct{
+	fn MogolyMiddleware
+	conf any
 }
