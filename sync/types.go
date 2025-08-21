@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/DoniLite/Mogoly/core"
 	"github.com/gorilla/websocket"
 )
 
@@ -34,8 +35,10 @@ type Client struct {
 type HandlerFunc func(conn *websocket.Conn, msg Message)
 
 type Server struct {
-	upgrader websocket.Upgrader
-	hub      *Hub
+	upgrader   websocket.Upgrader
+	hub        *Hub
+	HostConfig map[string]*http.Handler
+	globalConf *core.Config
 }
 
 type ErrorPayload struct {

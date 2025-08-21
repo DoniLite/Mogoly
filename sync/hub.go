@@ -61,7 +61,6 @@ func (h *Hub) run() {
 				}
 			}
 			h.mu.RUnlock()
-
 		}
 	}
 }

@@ -1,5 +1,7 @@
-github.com/DoniLite/tiny_balancer/core v0.2.0 h1:NzWwb8Yx3abOVcJYusgTrukoVlFZ5qZ1ZTMqKrD26eQ=
-github.com/DoniLite/tiny_balancer/core v0.2.0/go.mod h1:a25RjNDLkm9NowGgd4z43Wn5hxftBKPU6scKnVgBku0=
+github.com/DoniLite/Mogoly/core v0.3.0 h1:kbqtXqwGyeTDRqplZ+R5i+0TLfZ3Cs5Rh85CU6En6EU=
+github.com/DoniLite/Mogoly/core v0.3.0/go.mod h1:YnoeeUyGBr7gdJvHufdZQrbsVOitlH2O2B0RN+5Vs+o=
+github.com/DoniLite/Mogoly/core v0.3.1 h1:LLdahwtTTe9Zt0myji71DXzJgkewzmQ2DFaME/URqqQ=
+github.com/DoniLite/Mogoly/core v0.3.1/go.mod h1:YnoeeUyGBr7gdJvHufdZQrbsVOitlH2O2B0RN+5Vs+o=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=

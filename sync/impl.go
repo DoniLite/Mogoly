@@ -11,12 +11,98 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/DoniLite/Mogoly/core"
 	"github.com/google/uuid"
 )
 
 // Server
 
 func (s *Server) handleMessage(msg *Message, client *connection) error {
+	switch msg.Action.Type {
+	case CREATE_SERVER:
+		{
+			var globalConf core.Config
+			err := msg.DecodePayload(&globalConf)
+			if err != nil {
+				errMsg := NewErrorMessage("Invalid config struct provided", err.Error())
+				if msg.RequestID != "" {
+					errMsg.RequestID = msg.RequestID
+				}
+				client.sendMsg(errMsg)
+				return nil
+			}
+
+			for _, singleServer := range globalConf.Servers {
+				s.globalConf.Servers = append(s.globalConf.Servers, singleServer)
+				s.HostConfig[singleServer.Name] = createSingleHttpServer(singleServer)
+			}
+
+			if globalConf.HealthCheckInterval != 0 {
+				s.globalConf.HealthCheckInterval = globalConf.HealthCheckInterval
+			}
+			if globalConf.LogOutput != "" {
+				s.globalConf.LogOutput = globalConf.LogOutput
+			}
+			s.globalConf.Middlewares = globalConf.Middlewares
+			if msg.RequestID != "" {
+				newMsg, err := NewMessage(CREATE_SERVER, struct {
+					config  *core.Config
+					success bool
+				}{config: s.globalConf, success: true}, nil)
+
+				if err != nil {
+					client.send <- &Message{RequestID: msg.RequestID}
+					return nil
+				}
+
+				newMsg.RequestID = msg.RequestID
+
+				client.sendMsg(newMsg)
+			}
+			return nil
+		}
+	case ROLLBACK_SERVER:
+		{
+			var server core.Server
+			err := msg.DecodePayload(&server)
+			if err != nil {
+				errMsg := NewErrorMessage("No server provided for roll backing", err.Error())
+				if msg.RequestID != "" {
+					errMsg.RequestID = msg.RequestID
+				}
+				client.sendMsg(errMsg)
+				return nil
+			}
+
+			for idx, confServer := range s.globalConf.Servers {
+				if confServer.Name == server.Name {
+					if server.BalancingServers != nil {
+						s.globalConf.Servers[idx].RollBack(server.BalancingServers)
+					}
+					s.globalConf.Servers[idx] = &server
+					s.HostConfig[confServer.Name] = createSingleHttpServer(&server)
+				}
+			}
+
+			if msg.RequestID != "" {
+				newMsg, err := NewMessage(CREATE_SERVER, struct {
+					config  *core.Config
+					success bool
+				}{config: s.globalConf, success: true}, nil)
+
+				if err != nil {
+					client.send <- &Message{RequestID: msg.RequestID}
+					return nil
+				}
+
+				newMsg.RequestID = msg.RequestID
+
+				client.sendMsg(newMsg)
+			}
+
+			return nil
+		}
+	}
 	return nil
 }
 
@@ -167,6 +253,8 @@ func (c *Client) SendRequest(ctx context.Context, msgType Action_Type, payload a
 		return nil, err
 	}
 
+	msg.RequestID = requestID
+
 	respChan := make(chan *Message, 1)
 
 	c.pendingMu.Lock()
@@ -187,7 +275,7 @@ func (c *Client) SendRequest(ctx context.Context, msgType Action_Type, payload a
 	// Waiting for the response
 	select {
 	case resp := <-respChan:
-		log.Printf("Client: Received response for request %s (Type: %s, Error: '%s')\n", requestID, resp.Action.Type, resp.Error)
+		log.Printf("Client: Received response for request %s (Type: %d, Error: '%s')\n", requestID, resp.Action.Type, resp.Error)
 		if resp.Error != "" || resp.Action.Type == ERROR {
 			errMsg := resp.Error
 			if errMsg == "" {

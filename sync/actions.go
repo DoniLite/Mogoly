@@ -7,8 +7,10 @@ package sync
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"reflect"
 
-	"github.com/DoniLite/tiny_balancer/core"
+	"github.com/DoniLite/Mogoly/core"
 )
 
 type Action_Type int
@@ -16,7 +18,6 @@ type Action_Type int
 const (
 	CREATE_SERVER Action_Type = iota
 	ROLLBACK_SERVER
-	ROLLBACK_ALL
 	ADD_SERVER
 	KILL_SERVER
 	REBOOT_SERVER
@@ -28,10 +29,10 @@ type Action struct {
 		Based on the Action_Type Enum can be
 		    CREATE_SERVER
 		    ROLLBACK_SERVER
-			ROLLBACK_ALL
 			ADD_SERVER
 			KILL_SERVER
 			REBOOT_SERVER
+			ERROR
 	*/
 	Type    Action_Type     `json:"type" yaml:"type"`
 	Payload json.RawMessage `json:"payload" yaml:"payload"` // The associated payload to provide with this action
@@ -57,18 +58,34 @@ func (action *Action) AddPayload(payload any) error {
 		action.Payload = jsonBytes
 		return nil
 	} else {
-		return  err
+		return err
 	}
 }
 
-func (m *Message) DecodePayload(target interface{}) error {
+func (m *Message) DecodePayload(target any) error {
 	if len(m.Action.Payload) == 0 {
 		return fmt.Errorf("message payload is empty for type %d", m.Action.Type)
 	}
-	if err := json.Unmarshal(m.Action.Payload, target); err != nil {
-		return fmt.Errorf("failed to unmarshal payload for type %sd: %w", m.Action.Type, err)
+	if err := m.Action.Deserialize(target); err != nil {
+		return fmt.Errorf("failed to unmarshal payload for type %d: %w", m.Action.Type, err)
 	}
 	return nil
 }
 
+func createSingleHttpServer(s *core.Server) *http.Handler {
+	var handler http.Handler
+	mux := http.NewServeMux()
 
+	mux.HandleFunc("/", s.ServeHTTP)
+
+	for _, v := range s.Middlewares {
+		m := core.MiddlewaresList[core.MiddleWareName(v.Name)]
+		t := reflect.ValueOf(m.Conf).Type()
+		p := reflect.ValueOf(v.Config).Type()
+		if p.ConvertibleTo(t) {
+			handler = core.ChainMiddleware(mux, m.Fn(v.Config))
+		}
+	}
+
+	return &handler
+}
