@@ -58,7 +58,7 @@ func TestServer_UpgradeProxy(t *testing.T) {
 	server := &Server{Name: "test", URL: backend.URL}
 	err := server.UpgradeProxy()
 	assert.NoError(t, err)
-	assert.NotNil(t, server.Proxy)
+	assert.NotNil(t, server.proxy)
 }
 
 func TestPing(t *testing.T) {
