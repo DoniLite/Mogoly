@@ -20,7 +20,7 @@ func (server *Server) UpgradeProxy() error {
 	if server == nil {
 		return errors.New("nil receiver: server")
 	}
-	if server.Proxy != nil {
+	if server.proxy != nil {
 		return nil
 	}
 	serverURL, err := buildServerURL(server)
@@ -31,7 +31,7 @@ func (server *Server) UpgradeProxy() error {
 	if err != nil {
 		return err
 	}
-	server.Proxy = NewProxy(u)
+	server.proxy = NewProxy(u)
 	return nil
 }
 
@@ -233,7 +233,7 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	server.logf(LOG_INFO, "[Proxy]: Forwarding %s -> %s (backend ID: %s)", r.URL.String(), target.String(), backend.ID)
 
 	// Delegate to the preconfigured reverse proxy for the backend.
-	backend.Proxy.ServeHTTP(w, req)
+	backend.proxy.ServeHTTP(w, req)
 }
 
 // --- helpers ---
