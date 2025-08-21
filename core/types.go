@@ -5,10 +5,13 @@
 package core
 
 import (
+	"crypto/tls"
 	"net/http"
 	"net/http/httputil"
 	"sync"
 	"time"
+
+	certmagic "github.com/caddyserver/certmagic"
 )
 
 type LogType = int
@@ -20,26 +23,27 @@ const (
 )
 
 type Server struct {
-	ID               string    // THe server ID based on its registration order
-	Name             string    `json:"name,omitempty" yaml:"name,omitempty"`             // The server name
-	Protocol         string    `json:"protocol,omitempty" yaml:"protocol,omitempty"`     // The protocol for the server this field can be `http` or `https`
-	Host             string    `json:"host,omitempty" yaml:"host,omitempty"`             // The server host
-	Port             int       `json:"port,omitempty" yaml:"port,omitempty"`             // The port on which the server is running
-	URL              string    `json:"url,omitempty" yaml:"url,omitempty"`               // If this field is provided the URL will be used for request forwarding
-	IsHealthy        bool      `json:"is_healthy,omitempty" yaml:"is_healthy,omitempty"` // Specifying the server health check state
-	BalancingServers []*Server `json:"balance,omitempty" yaml:"balance,omitempty"`       // If specified these servers will be used for load balancing request
+	ID               string       // THe server ID based on its registration order
+	Name             string       `json:"name,omitempty" yaml:"name,omitempty"`             // The server name
+	Protocol         string       `json:"protocol,omitempty" yaml:"protocol,omitempty"`     // The protocol for the server this field can be `http` or `https`
+	Host             string       `json:"host,omitempty" yaml:"host,omitempty"`             // The server host
+	Port             int          `json:"port,omitempty" yaml:"port,omitempty"`             // The port on which the server is running
+	URL              string       `json:"url,omitempty" yaml:"url,omitempty"`               // If this field is provided the URL will be used for request forwarding
+	IsHealthy        bool         `json:"is_healthy,omitempty" yaml:"is_healthy,omitempty"` // Specifying the server health check state
+	BalancingServers []*Server    `json:"balance,omitempty" yaml:"balance,omitempty"`       // If specified these servers will be used for load balancing request
+	Middlewares      []Middleware `json:"middlewares,omitempty" yaml:"middlewares,omitempty"`
 	LastHealthCheck  *time.Time
-	Proxy            *httputil.ReverseProxy
+	proxy            *httputil.ReverseProxy
 	mu               sync.Mutex
 	idx              int
 	Logs             chan Logs
+	forceTLS         bool
 }
 
 type Middleware struct {
 	Name   string `json:"name" yaml:"name"`
 	Config any    `json:"config,omitempty" yaml:"config,omitempty"`
 }
-
 
 type BalancerStrategy interface {
 	GetNextServer() (*Server, error)
@@ -51,7 +55,7 @@ type Logs struct {
 }
 
 type Config struct {
-	Servers             []Server     `json:"server" yaml:"server"` // The servers instances
+	Servers             []*Server    `json:"server" yaml:"server"` // The servers instances
 	HealthCheckInterval int          `json:"healthcheck_interval,omitempty" yaml:"healthcheck_interval,omitempty"`
 	LogOutput           string       `json:"log_output,omitempty" yaml:"log_output,omitempty"`
 	Middlewares         []Middleware `json:"middlewares,omitempty" yaml:"middlewares,omitempty"`
@@ -75,7 +79,22 @@ type MogolyMiddleware func(config any) func(next http.Handler) http.Handler
 
 type MiddleWareName string
 
-type MiddlewareSets map[MiddleWareName]struct{
-	fn MogolyMiddleware
-	conf any
+type MiddlewareSets map[MiddleWareName]struct {
+	Fn   MogolyMiddleware
+	Conf any
+}
+
+type DNSServer struct {
+	isLocal   func(string) bool
+	forwardTo string // optional upstream (ip:port)
+}
+
+type CertManager struct {
+	cm        *certmagic.Config
+	selfStore map[string]*tls.Certificate // cache for local/self-signed
+	mu        sync.RWMutex
+}
+
+type RouterState struct {
+	m map[string]*Server // host -> backend
 }
