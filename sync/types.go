@@ -8,12 +8,11 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/DoniLite/Mogoly/core"
 	"github.com/gorilla/websocket"
 )
 
 type Client struct {
-	conn *connection // Shared wrapper for WebSocket connection
+	conn *Connection // Shared wrapper for WebSocket connection
 
 	// Incoming messages are pushed here by the readPump.
 	// Users can read from this channel to process incoming messages.
@@ -32,13 +31,12 @@ type Client struct {
 	pendingMu       sync.RWMutex
 }
 
-type HandlerFunc func(conn *websocket.Conn, msg Message)
+type HandlerFunc func(msg *Message, conn *Connection) error
 
 type Server struct {
 	upgrader   websocket.Upgrader
 	hub        *Hub
-	HostConfig map[string]*http.Handler
-	globalConf *core.Config
+	msgHandler HandlerFunc
 }
 
 type ErrorPayload struct {

@@ -11,99 +11,13 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/DoniLite/Mogoly/core"
 	"github.com/google/uuid"
 )
 
 // Server
 
-func (s *Server) handleMessage(msg *Message, client *connection) error {
-	switch msg.Action.Type {
-	case CREATE_SERVER:
-		{
-			var globalConf core.Config
-			err := msg.DecodePayload(&globalConf)
-			if err != nil {
-				errMsg := NewErrorMessage("Invalid config struct provided", err.Error())
-				if msg.RequestID != "" {
-					errMsg.RequestID = msg.RequestID
-				}
-				client.sendMsg(errMsg)
-				return nil
-			}
-
-			for _, singleServer := range globalConf.Servers {
-				s.globalConf.Servers = append(s.globalConf.Servers, singleServer)
-				s.HostConfig[singleServer.Name] = createSingleHttpServer(singleServer)
-			}
-
-			if globalConf.HealthCheckInterval != 0 {
-				s.globalConf.HealthCheckInterval = globalConf.HealthCheckInterval
-			}
-			if globalConf.LogOutput != "" {
-				s.globalConf.LogOutput = globalConf.LogOutput
-			}
-			s.globalConf.Middlewares = globalConf.Middlewares
-			if msg.RequestID != "" {
-				newMsg, err := NewMessage(CREATE_SERVER, struct {
-					config  *core.Config
-					success bool
-				}{config: s.globalConf, success: true}, nil)
-
-				if err != nil {
-					client.send <- &Message{RequestID: msg.RequestID}
-					return nil
-				}
-
-				newMsg.RequestID = msg.RequestID
-
-				client.sendMsg(newMsg)
-			}
-			return nil
-		}
-	case ROLLBACK_SERVER:
-		{
-			var server core.Server
-			err := msg.DecodePayload(&server)
-			if err != nil {
-				errMsg := NewErrorMessage("No server provided for roll backing", err.Error())
-				if msg.RequestID != "" {
-					errMsg.RequestID = msg.RequestID
-				}
-				client.sendMsg(errMsg)
-				return nil
-			}
-
-			for idx, confServer := range s.globalConf.Servers {
-				if confServer.Name == server.Name {
-					if server.BalancingServers != nil {
-						s.globalConf.Servers[idx].RollBack(server.BalancingServers)
-					}
-					s.globalConf.Servers[idx] = &server
-					s.HostConfig[confServer.Name] = createSingleHttpServer(&server)
-				}
-			}
-
-			if msg.RequestID != "" {
-				newMsg, err := NewMessage(CREATE_SERVER, struct {
-					config  *core.Config
-					success bool
-				}{config: s.globalConf, success: true}, nil)
-
-				if err != nil {
-					client.send <- &Message{RequestID: msg.RequestID}
-					return nil
-				}
-
-				newMsg.RequestID = msg.RequestID
-
-				client.sendMsg(newMsg)
-			}
-
-			return nil
-		}
-	}
-	return nil
+func (s *Server) handleMessage(msg *Message, client *Connection) error {
+	return s.msgHandler(msg, client)
 }
 
 // Handling http request and trying to upgrade it to a websocket connection.
@@ -115,7 +29,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("ServeHTTP: Client connected from %s\n", ws.RemoteAddr())
 
-	conn := newConnection(ws)
+	conn := NewConnection(ws)
 
 	s.hub.register <- conn
 
@@ -158,7 +72,7 @@ func (c *Client) Connect(serverUrl string, headers http.Header) error {
 	log.Printf("Client: Successfully connected to %s\n", c.connUrl)
 
 	c.mu.Lock()
-	c.conn = newConnection(ws)
+	c.conn = NewConnection(ws)
 	c.isConnected = true
 	c.mu.Unlock()
 
@@ -168,7 +82,7 @@ func (c *Client) Connect(serverUrl string, headers http.Header) error {
 	return nil
 }
 
-func (c *Client) handleIncomingMessage(msg *Message, conn *connection) error {
+func (c *Client) handleIncomingMessage(msg *Message, conn *Connection) error {
 	log.Printf("Client: Received message type %d (ReqID: %s)\n", msg.Action.Type, msg.RequestID) // Debug
 
 	// Check if it's a pending request
@@ -196,7 +110,7 @@ func (c *Client) handleIncomingMessage(msg *Message, conn *connection) error {
 	return nil
 }
 
-func (c *Client) handleDisconnect(conn *connection) {
+func (c *Client) handleDisconnect(conn *Connection) {
 	c.mu.Lock()
 	if c.conn != conn {
 		c.mu.Unlock()
@@ -231,7 +145,7 @@ func (c *Client) Send(msg *Message) error {
 		return fmt.Errorf("client not connected")
 	}
 	log.Printf("Client: Sending message type %d async\n", msg.Action.Type) // Debug
-	conn.sendMsg(msg)
+	conn.SendMsg(msg)
 	return nil
 }
 
@@ -270,7 +184,7 @@ func (c *Client) SendRequest(ctx context.Context, msgType Action_Type, payload a
 
 	// Send the request
 	log.Printf("Client: Sending request %s (Type: %d)\n", requestID, msg.Action.Type)
-	conn.sendMsg(msg)
+	conn.SendMsg(msg)
 
 	// Waiting for the response
 	select {
@@ -303,7 +217,7 @@ func (c *Client) Close() {
 	log.Println("Client: Close called.")
 
 	if c.conn != nil && c.isConnected {
-		c.conn.closeSend()
+		c.conn.CloseSend()
 	}
 	c.isConnected = false
 }

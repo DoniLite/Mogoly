@@ -50,15 +50,15 @@ type BalancerStrategy interface {
 }
 
 type Logs struct {
-	logType LogType
-	message string
+	Target  string
+	LogType LogType
+	Message string
 }
 
 type Config struct {
 	Servers             []*Server    `json:"server" yaml:"server"` // The servers instances
 	HealthCheckInterval int          `json:"healthcheck_interval,omitempty" yaml:"healthcheck_interval,omitempty"`
 	LogOutput           string       `json:"log_output,omitempty" yaml:"log_output,omitempty"`
-	Middlewares         []Middleware `json:"middlewares,omitempty" yaml:"middlewares,omitempty"`
 }
 
 // The result of a health checking process for a server
@@ -96,5 +96,14 @@ type CertManager struct {
 }
 
 type RouterState struct {
-	m map[string]*Server // host -> backend
+	mu sync.RWMutex
+	m  map[string]*http.Handler // host -> backend
+	s  map[string]*Server
+}
+
+type ConfigRules map[string]ConfigRulesTarget
+
+type ConfigRulesTarget struct {
+	Conf    *Config
+	Targets []*Server
 }
