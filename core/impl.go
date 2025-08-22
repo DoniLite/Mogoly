@@ -245,7 +245,7 @@ func (s *Server) logf(level int, format string, args ...any) {
 	// Non-blocking send; drop if channel is full
 	msg := fmt.Sprintf(format, args...)
 	select {
-	case s.Logs <- Logs{message: msg, logType: level}:
+	case s.Logs <- Logs{Message: msg, LogType: level}:
 	default:
 	}
 }

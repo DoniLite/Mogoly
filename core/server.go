@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -33,16 +34,36 @@ var (
 
 func BuildRouter(config *Config) {
 	rs := &RouterState{
-		m: make(map[string]*Server),
+		m: make(map[string]*http.Handler),
+		s: make(map[string]*Server),
 	}
 	for _, server := range config.Servers {
-		rs.m[strings.ToLower(server.Host)] = server
+		rs.m[strings.ToLower(server.Name)] = createSingleHttpServer(server)
+		rs.s[strings.ToLower(server.Name)] = server
 	}
 	currentRouter.Store(rs)
 }
 
 func GetRouter() *RouterState {
 	return currentRouter.Load()
+}
+
+func createSingleHttpServer(s *Server) *http.Handler {
+	var handler http.Handler
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/", s.ServeHTTP)
+
+	for _, v := range s.Middlewares {
+		m := MiddlewaresList[MiddleWareName(v.Name)]
+		t := reflect.ValueOf(m.Conf).Type()
+		p := reflect.ValueOf(v.Config).Type()
+		if p.ConvertibleTo(t) {
+			handler = ChainMiddleware(mux, m.Fn(v.Config))
+		}
+	}
+
+	return &handler
 }
 
 // ping returns a "pong" message consider registering this Handler for the health checking logic
@@ -180,7 +201,7 @@ func routeHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	b.proxy.ServeHTTP(w, r)
+	(*b).ServeHTTP(w, r)
 }
 
 func httpEntry(w http.ResponseWriter, r *http.Request) {
@@ -189,7 +210,7 @@ func httpEntry(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "router not ready", http.StatusServiceUnavailable)
 		return
 	}
-	if b, ok := rs.m[strings.ToLower(r.Host)]; ok && b.forceTLS {
+	if b, ok := rs.s[strings.ToLower(r.Host)]; ok && b.forceTLS {
 		url := *r.URL
 		url.Scheme = "https"
 		url.Host = r.Host

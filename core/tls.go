@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func (m *CertManager) isLocalHostlike(name string) bool {
+func (m *CertManager) isLocalHostLike(name string) bool {
 	name = strings.ToLower(name)
 	return strings.Contains(name, "localhost") || strings.HasSuffix(name, ".test")
 }
@@ -25,7 +25,7 @@ func (m *CertManager) GetCertificate(chi *tls.ClientHelloInfo) (*tls.Certificate
 		return nil, errors.New("missing SNI")
 	}
 	name := strings.ToLower(chi.ServerName)
-	if m.isLocalHostlike(name) {
+	if m.isLocalHostLike(name) {
 		// self-signed for localhost-like
 		m.mu.RLock()
 		if cert, ok := m.selfStore[name]; ok {
@@ -57,7 +57,7 @@ func generateSelfSigned(host string) (*tls.Certificate, error) {
 	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	tmpl := x509.Certificate{
 		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: host, Organization: []string{"Doni Local CA"}},
+		Subject:      pkix.Name{CommonName: host, Organization: []string{"Mogoly Local CA"}},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
