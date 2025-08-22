@@ -7,10 +7,6 @@ package sync
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"reflect"
-
-	"github.com/DoniLite/Mogoly/core"
 )
 
 type Action_Type int
@@ -70,22 +66,4 @@ func (m *Message) DecodePayload(target any) error {
 		return fmt.Errorf("failed to unmarshal payload for type %d: %w", m.Action.Type, err)
 	}
 	return nil
-}
-
-func createSingleHttpServer(s *core.Server) *http.Handler {
-	var handler http.Handler
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/", s.ServeHTTP)
-
-	for _, v := range s.Middlewares {
-		m := core.MiddlewaresList[core.MiddleWareName(v.Name)]
-		t := reflect.ValueOf(m.Conf).Type()
-		p := reflect.ValueOf(v.Config).Type()
-		if p.ConvertibleTo(t) {
-			handler = core.ChainMiddleware(mux, m.Fn(v.Config))
-		}
-	}
-
-	return &handler
 }
