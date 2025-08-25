@@ -236,16 +236,26 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	backend.proxy.ServeHTTP(w, req)
 }
 
+// Router
+
+func (rs *RouterState) AddServer(server *Server) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	rs.m[strings.ToLower(server.Name)] = createSingleHttpServer(server)
+	rs.s[strings.ToLower(server.Name)] = server
+}
+
 // --- helpers ---
 
 func (s *Server) logf(level int, format string, args ...any) {
-	if s == nil || s.Logs == nil {
+	currentLogger := GetLogger()
+	if s == nil || currentLogger == nil {
 		return
 	}
 	// Non-blocking send; drop if channel is full
 	msg := fmt.Sprintf(format, args...)
 	select {
-	case s.Logs <- Logs{Message: msg, LogType: level}:
+	case currentLogger <- Logs{Message: msg, LogType: level}:
 	default:
 	}
 }

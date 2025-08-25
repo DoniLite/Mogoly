@@ -12,15 +12,13 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
 var (
-	currentRouter atomic.Pointer[RouterState]
+	currentRouter *RouterState
 )
 
 var (
@@ -34,40 +32,40 @@ var (
 
 func BuildRouter(config *Config) {
 	rs := &RouterState{
-		m: make(map[string]*http.Handler),
+		m: make(map[string]http.Handler),
 		s: make(map[string]*Server),
 	}
 	for _, server := range config.Servers {
 		rs.m[strings.ToLower(server.Name)] = createSingleHttpServer(server)
 		rs.s[strings.ToLower(server.Name)] = server
 	}
-	currentRouter.Store(rs)
+
+	rs.globalConfig = config
+	currentRouter = rs
 }
 
 func GetRouter() *RouterState {
-	return currentRouter.Load()
+	return currentRouter
 }
 
-func createSingleHttpServer(s *Server) *http.Handler {
-	var handler http.Handler
+func createSingleHttpServer(s *Server) http.Handler {
 	mux := http.NewServeMux()
-
 	mux.HandleFunc("/", s.ServeHTTP)
+
+	var middlewares []func(http.Handler) http.Handler
 
 	for _, v := range s.Middlewares {
 		m := MiddlewaresList[MiddleWareName(v.Name)]
-		t := reflect.ValueOf(m.Conf).Type()
-		p := reflect.ValueOf(v.Config).Type()
-		if p.ConvertibleTo(t) {
-			handler = ChainMiddleware(mux, m.Fn(v.Config))
-		}
+
+		middlewares = append(middlewares, m.Fn(v.Config))
 	}
 
-	return &handler
+	return ChainMiddleware(mux, middlewares...)
 }
 
 // ping returns a "pong" message consider registering this Handler for the health checking logic
 func Ping(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("pong"))
 }
 
@@ -191,7 +189,7 @@ func ChainMiddleware(handler http.Handler, middlewares ...func(http.Handler) htt
 }
 
 func routeHandler(w http.ResponseWriter, r *http.Request) {
-	rs := currentRouter.Load()
+	rs := GetRouter()
 	if rs == nil {
 		http.Error(w, "router not ready", http.StatusServiceUnavailable)
 		return
@@ -201,11 +199,11 @@ func routeHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	(*b).ServeHTTP(w, r)
+	b.ServeHTTP(w, r)
 }
 
 func httpEntry(w http.ResponseWriter, r *http.Request) {
-	rs := currentRouter.Load()
+	rs := GetRouter()
 	if rs == nil {
 		http.Error(w, "router not ready", http.StatusServiceUnavailable)
 		return

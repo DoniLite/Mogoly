@@ -37,7 +37,7 @@ func (d *DNSServer) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 func (d *DNSServer) forward(name string, qtype uint16, m *dns.Msg) {
 	if d.forwardTo == "" {
-		return
+		d.forwardTo = "1.1.1.1:53"
 	}
 	c := new(dns.Client)
 	msg := new(dns.Msg)

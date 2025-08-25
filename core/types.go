@@ -36,7 +36,6 @@ type Server struct {
 	proxy            *httputil.ReverseProxy
 	mu               sync.Mutex
 	idx              int
-	Logs             chan Logs
 	forceTLS         bool
 }
 
@@ -56,9 +55,9 @@ type Logs struct {
 }
 
 type Config struct {
-	Servers             []*Server    `json:"server" yaml:"server"` // The servers instances
-	HealthCheckInterval int          `json:"healthcheck_interval,omitempty" yaml:"healthcheck_interval,omitempty"`
-	LogOutput           string       `json:"log_output,omitempty" yaml:"log_output,omitempty"`
+	Servers             []*Server `json:"server" yaml:"server"` // The servers instances
+	HealthCheckInterval int       `json:"healthcheck_interval,omitempty" yaml:"healthcheck_interval,omitempty"`
+	LogOutput           string    `json:"log_output,omitempty" yaml:"log_output,omitempty"`
 }
 
 // The result of a health checking process for a server
@@ -96,9 +95,10 @@ type CertManager struct {
 }
 
 type RouterState struct {
-	mu sync.RWMutex
-	m  map[string]*http.Handler // host -> backend
-	s  map[string]*Server
+	mu           sync.RWMutex
+	m            map[string]http.Handler // host -> backend
+	s            map[string]*Server
+	globalConfig *Config
 }
 
 type ConfigRules map[string]ConfigRulesTarget
@@ -107,3 +107,5 @@ type ConfigRulesTarget struct {
 	Conf    *Config
 	Targets []*Server
 }
+
+type Logger chan any
