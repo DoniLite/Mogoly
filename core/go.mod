@@ -1,8 +1,9 @@
 module github.com/DoniLite/Mogoly/core
 
-go 1.24.4
+go 1.24.6
 
 require (
+	github.com/DoniLite/go-events v0.1.2
 	github.com/caddyserver/certmagic v0.24.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/miekg/dns v1.1.68
