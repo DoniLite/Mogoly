@@ -43,5 +43,18 @@ jobs:
             cd -
           done
   
-      - name: Golangci-lint
-        uses: golangci/golangci-lint-action@v8.0.0
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
+            | sh -s -- -b $(go env GOPATH)/bin v2.4.0
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Run golangci-lint in each module
+        run: |
+          for module in ${{ steps.find-modules.outputs.modules }}; do
+            echo "Linting $module"
+            cd $module
+            golangci-lint run ./...
+            cd -
+          done
+
