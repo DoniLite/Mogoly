@@ -35,10 +35,10 @@ func TestServer_ServeHTTP(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	balancingServer := &Server{Name: "backend", URL: backend.URL, Logs: make(chan Logs, 10)}
+	balancingServer := &Server{Name: "backend", URL: backend.URL}
 	_ = balancingServer.UpgradeProxy()
 
-	server := &Server{Name: "backend", URL: backend.URL, Logs: make(chan Logs, 10)}
+	server := &Server{Name: "backend", URL: backend.URL}
 	_ = server.UpgradeProxy()
 
 	server.AddNewBalancingServer(balancingServer)
