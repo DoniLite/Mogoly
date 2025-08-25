@@ -45,12 +45,3 @@ jobs:
   
       - name: Golangci-lint
         uses: golangci/golangci-lint-action@v8.0.0
-
-      - name: Run golangci-lint in each module
-        run: |
-          for module in ${{ steps.find-modules.outputs.modules }}; do
-            echo "🔍 Linting $module"
-            cd $module
-            golangci-lint run --timeout=2m
-            cd -
-          done
