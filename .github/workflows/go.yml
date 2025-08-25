@@ -1,4 +1,4 @@
-name: Tiny Balancer Test and Lint
+name: Mogoly Test and Lint
 
 on:
   push:
