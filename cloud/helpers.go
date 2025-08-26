@@ -10,7 +10,10 @@ import (
 
 func generateRandomString(length int) string {
 	bytes := make([]byte, length)
-	rand.Read(bytes)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return ""
+	}
 	return hex.EncodeToString(bytes)[:length]
 }
 

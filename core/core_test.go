@@ -5,6 +5,7 @@
 package core
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -31,7 +32,10 @@ func TestServer_GetNextServer(t *testing.T) {
 
 func TestServer_ServeHTTP(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		_, err := w.Write([]byte("ok"))
+		if err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	}))
 	defer backend.Close()
 
@@ -52,7 +56,10 @@ func TestServer_ServeHTTP(t *testing.T) {
 
 func TestServer_UpgradeProxy(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		_, err := w.Write([]byte("ok"))
+		if err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	}))
 	defer backend.Close()
 	server := &Server{Name: "test", URL: backend.URL}
@@ -125,7 +132,10 @@ func TestServer_RollBackAndRollBackAny(t *testing.T) {
 func TestServer_CheckHealthSelfAndAny(t *testing.T) {
 	// Backend healthy
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		_, err := w.Write([]byte("ok"))
+		if err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	}))
 	defer backend.Close()
 	server := &Server{Name: "healthy", URL: backend.URL}

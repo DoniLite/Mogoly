@@ -62,9 +62,12 @@ func (c *Client) Connect(serverUrl string, headers http.Header) error {
 		if resp != nil {
 			errMsg = fmt.Sprintf("%s (Status: %s)", errMsg, resp.Status)
 			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			err = resp.Body.Close()
 			if len(body) > 0 {
 				errMsg = fmt.Sprintf("%s - Body: %s", errMsg, string(body))
+			}
+			if err != nil {
+				log.Printf("Error closing response body: %v", err)
 			}
 		}
 		return fmt.Errorf("an error occurred %s", errMsg)

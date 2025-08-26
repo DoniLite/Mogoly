@@ -66,7 +66,10 @@ func createSingleHttpServer(s *Server) http.Handler {
 // ping returns a "pong" message consider registering this Handler for the health checking logic
 func Ping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("pong"))
+	_, err := w.Write([]byte("pong"))
+	if err != nil {
+		log.Printf("Error writing response: %v", err)
+	}
 }
 
 func HealthChecker(server *Server) (bool, error) {
