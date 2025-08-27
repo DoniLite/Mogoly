@@ -1,6 +1,5 @@
 package sync
 
-
 import (
 	"encoding/json"
 	"log"
@@ -20,31 +19,38 @@ const (
 	maxMessageSize = 8192 // Adjust if the body size can be consequent (ex: build spec)
 )
 
-type connection struct {
+type Connection struct {
 	ws   *websocket.Conn
 	send chan *Message // Channel for writing the i/o message
 }
 
 // creating a new connection struct.
-func newConnection(ws *websocket.Conn) *connection {
-	return &connection{
+func NewConnection(ws *websocket.Conn) *Connection {
+	return &Connection{
 		ws:   ws,
 		send: make(chan *Message, 256),
 	}
 }
 
 // fetching message from the channels 'send' to the WebSocket connection.
-func (c *connection) write(msgType int, payload []byte) error {
-	c.ws.SetWriteDeadline(time.Now().Add(writeWait))
+func (c *Connection) write(msgType int, payload []byte) error {
+	err := c.ws.SetWriteDeadline(time.Now().Add(writeWait))
+	if err != nil {
+		log.Printf("write: Error setting write deadline: %v\n", err)
+		return err
+	}
 	return c.ws.WriteMessage(msgType, payload)
 }
 
 // Handling sorting and periodical ping messages to the server
-func (c *connection) writePump() {
+func (c *Connection) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		c.ws.Close()
+		err := c.ws.Close()
+		if err != nil {
+			log.Printf("writePump: Error closing WebSocket connection: %v\n", err)
+		}
 		log.Println("writePump: Stopped and closed WebSocket connection")
 	}()
 
@@ -53,11 +59,17 @@ func (c *connection) writePump() {
 		case message, ok := <-c.send:
 			if !ok {
 				log.Println("writePump: Send channel closed, closing connection.")
-				c.write(websocket.CloseMessage, []byte{})
+				err := c.write(websocket.CloseMessage, []byte{})
+				if err != nil {
+					log.Printf("writePump: Error writing close message: %v\n", err)
+				}
 				return
 			}
 
-			c.ws.SetWriteDeadline(time.Now().Add(writeWait))
+			err := c.ws.SetWriteDeadline(time.Now().Add(writeWait))
+			if err != nil {
+				log.Printf("write: Error setting write deadline: %v\n", err)
+			}
 			w, err := c.ws.NextWriter(websocket.TextMessage)
 			if err != nil {
 				log.Printf("writePump: Error getting next writer: %v\n", err)
@@ -67,14 +79,20 @@ func (c *connection) writePump() {
 			if err != nil {
 				log.Printf("writePump: Error marshaling message type %d: %v\n", message.Action.Type, err)
 				// Don't return try to send the next message
-				w.Close() // Close the actual writer
+				err := w.Close() // Close the actual writer
+				if err != nil {
+					log.Printf("writePump: Error closing writer: %v\n", err)
+				}
 				continue
 			}
 
 			_, err = w.Write(jsonBytes)
 			if err != nil {
 				log.Printf("writePump: Error writing JSON: %v\n", err)
-				w.Close()
+				err := w.Close()
+				if err != nil {
+					log.Printf("writePump: Error closing writer: %v\n", err)
+				}
 			}
 
 			if err := w.Close(); err != nil {
@@ -95,18 +113,27 @@ func (c *connection) writePump() {
 }
 
 // Handling entering message
-func (c *connection) readPump(handler func(msg *Message, conn *connection) error, disconnect func(conn *connection)) {
+func (c *Connection) readPump(handler func(msg *Message, conn *Connection) error, disconnect func(conn *Connection)) {
 	defer func() {
 		disconnect(c)
-		c.ws.Close()
+		err := c.ws.Close()
+		if err != nil {
+			log.Printf("readPump: Error closing WebSocket connection: %v\n", err)
+		}
 		log.Println("readPump: Stopped and closed WebSocket connection")
 	}()
 
 	c.ws.SetReadLimit(maxMessageSize)
-	c.ws.SetReadDeadline(time.Now().Add(pongWait))
+	err := c.ws.SetReadDeadline(time.Now().Add(pongWait))
+	if err != nil {
+		log.Printf("readPump: Error setting read deadline: %v\n", err)
+	}
 	c.ws.SetPongHandler(func(string) error {
 		log.Println("readPump: Received pong") // Debug
-		c.ws.SetReadDeadline(time.Now().Add(pongWait))
+		err = c.ws.SetReadDeadline(time.Now().Add(pongWait))
+		if err != nil {
+			log.Printf("readPump: Error setting read deadline: %v\n", err)
+		}
 		return nil
 	})
 
@@ -145,12 +172,15 @@ func (c *connection) readPump(handler func(msg *Message, conn *connection) error
 			c.send <- errMsg
 		}
 
-		c.ws.SetReadDeadline(time.Now().Add(pongWait))
+		err = c.ws.SetReadDeadline(time.Now().Add(pongWait))
+		if err != nil {
+			log.Printf("readPump: Error setting read deadline: %v\n", err)
+		}
 	}
 }
 
 // sending message asynchronously via the websocket.
-func (c *connection) sendMsg(msg *Message) {
+func (c *Connection) SendMsg(msg *Message) {
 	select {
 	case c.send <- msg:
 	default:
@@ -159,6 +189,6 @@ func (c *connection) sendMsg(msg *Message) {
 }
 
 // closing the send channel and stopping the writePump function.
-func (c *connection) closeSend() {
+func (c *Connection) CloseSend() {
 	close(c.send)
 }

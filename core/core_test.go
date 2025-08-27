@@ -5,6 +5,7 @@
 package core
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -31,14 +32,17 @@ func TestServer_GetNextServer(t *testing.T) {
 
 func TestServer_ServeHTTP(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		_, err := w.Write([]byte("ok"))
+		if err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	}))
 	defer backend.Close()
 
-	balancingServer := &Server{Name: "backend", URL: backend.URL, Logs: make(chan Logs, 10)}
+	balancingServer := &Server{Name: "backend", URL: backend.URL}
 	_ = balancingServer.UpgradeProxy()
 
-	server := &Server{Name: "backend", URL: backend.URL, Logs: make(chan Logs, 10)}
+	server := &Server{Name: "backend", URL: backend.URL}
 	_ = server.UpgradeProxy()
 
 	server.AddNewBalancingServer(balancingServer)
@@ -52,13 +56,16 @@ func TestServer_ServeHTTP(t *testing.T) {
 
 func TestServer_UpgradeProxy(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		_, err := w.Write([]byte("ok"))
+		if err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	}))
 	defer backend.Close()
 	server := &Server{Name: "test", URL: backend.URL}
 	err := server.UpgradeProxy()
 	assert.NoError(t, err)
-	assert.NotNil(t, server.Proxy)
+	assert.NotNil(t, server.proxy)
 }
 
 func TestPing(t *testing.T) {
@@ -125,7 +132,10 @@ func TestServer_RollBackAndRollBackAny(t *testing.T) {
 func TestServer_CheckHealthSelfAndAny(t *testing.T) {
 	// Backend healthy
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		_, err := w.Write([]byte("ok"))
+		if err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	}))
 	defer backend.Close()
 	server := &Server{Name: "healthy", URL: backend.URL}

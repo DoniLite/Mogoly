@@ -5,10 +5,12 @@
 package core
 
 import (
-	"github.com/stretchr/testify/assert"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIntegration_ConfigParsing(t *testing.T) {
@@ -34,7 +36,10 @@ func TestIntegration_HealthChecker_Error(t *testing.T) {
 
 func TestIntegration_LoadBalancerWithHealthCheck(t *testing.T) {
 	healthy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("healthy"))
+		_, err := w.Write([]byte("healthy"))
+		if err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	}))
 	defer healthy.Close()
 
@@ -43,9 +48,9 @@ func TestIntegration_LoadBalancerWithHealthCheck(t *testing.T) {
 	}))
 	defer unhealthy.Close()
 
-	server := &Server{Name: "main", Logs: make(chan Logs, 10)}
-	serverHealthy := &Server{Name: "healthy", URL: healthy.URL, Logs: make(chan Logs, 10)}
-	serverUnhealthy := &Server{Name: "unhealthy", URL: unhealthy.URL, Logs: make(chan Logs, 10)}
+	server := &Server{Name: "main"}
+	serverHealthy := &Server{Name: "healthy", URL: healthy.URL}
+	serverUnhealthy := &Server{Name: "unhealthy", URL: unhealthy.URL}
 
 	_ = serverHealthy.UpgradeProxy()
 	_ = serverUnhealthy.UpgradeProxy()
