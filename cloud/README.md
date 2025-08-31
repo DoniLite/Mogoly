@@ -9,5 +9,5 @@ To activate `https` make sure to run the traefik service with the method:
 func (m *CloudManager) CreateTraefikBundle(acmeEmail string) (string, error)
 ```
 
-Refers the types to see the config to provide to activate `tls` for a specific service
-> This feature is only available for defined databases services
+Refer to the types to see the config to provide to activate `tls` for a specific service
+> This feature is only available for defined database services
