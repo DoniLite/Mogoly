@@ -3,6 +3,7 @@ package core
 import (
 	"crypto/tls"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,7 +19,11 @@ func TestServeHTTPS_LocalhostSNI(t *testing.T) {
 
 	cm := NewCertManager(t.TempDir(), "noreply@example.com", "development")
 	ts := ServeHTTPS("127.0.0.1:0", cm)
-	defer ts.Close()
+	defer func() {
+		if err := ts.Close(); err != nil {
+			log.Printf("Error while closing the server: %v", err)
+		}
+	}()
 
 	// build client that trusts self-signed (skip verify for test)
 	addr := ts.Addr
@@ -33,7 +38,11 @@ func TestServeHTTPS_LocalhostSNI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("https request: %v", err)
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			log.Printf("Error while closing the body reader: %v", err)
+		}
+	}()
 	if res.StatusCode != 200 {
 		t.Fatalf("want 200, got %d", res.StatusCode)
 	}

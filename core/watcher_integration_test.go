@@ -24,7 +24,9 @@ func TestWatchConfig_ReloadsOnChange(t *testing.T) {
 
 	// mutate
 	updated := []byte("server:\n  - name: b\n    protocol: http\n    host: 127.0.0.1\n    port: 8081\n")
-	os.WriteFile(fp, updated, 0644)
+	if err := os.WriteFile(fp, updated, 0644); err != nil {
+		t.Fatalf("error during file content writing: %v", err)
+	}
 
 	select {
 	case cfg := <-reloaded:

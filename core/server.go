@@ -85,7 +85,11 @@ func HealthChecker(server *Server) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			log.Printf("Error while closing the body reader: %v", err)
+		}
+	}()
 	if res.StatusCode >= 400 {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
 		return false, fmt.Errorf("server responded %d: %s", res.StatusCode, string(body))

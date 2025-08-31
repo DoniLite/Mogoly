@@ -8,9 +8,17 @@ import (
 )
 
 func TestProxy_RoundRobin_Forwarding(t *testing.T) {
-	b1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "one") }))
+	b1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := io.WriteString(w, "one"); err != nil {
+			t.Fail()
+		}
+	}))
 	defer b1.Close()
-	b2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "two") }))
+	b2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := io.WriteString(w, "two"); err != nil {
+			t.Fail()
+		}
+	}))
 	defer b2.Close()
 	var got string
 	var firstHitsGot string
