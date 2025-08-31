@@ -20,6 +20,8 @@ func (server *Server) UpgradeProxy() error {
 	if server == nil {
 		return errors.New("nil receiver: server")
 	}
+	server.mu.Lock()
+	defer server.mu.Unlock()
 	if server.proxy != nil {
 		return nil
 	}
@@ -84,11 +86,11 @@ func (server *Server) CheckHealthAll() (*HealthCheckStatus, error) {
 		success, err := HealthChecker(target)
 		u, _ := buildServerURL(target)
 
-		// Update target's fields under its own lock if it has one; otherwise assume Server.mu protects it.
-		server.mu.Lock()
-		target.IsHealthy = err == nil && success
-		target.LastHealthCheck = func(t time.Time) *time.Time { return &t }(checkStart)
-		server.mu.Unlock()
+		target.mu.Lock()
+		target.IsHealthy = (err == nil && success)
+		t := checkStart
+		target.LastHealthCheck = &t
+		target.mu.Unlock()
 
 		entry := ServerStatus{Name: target.Name, Url: u, Healthy: target.IsHealthy}
 		if target.IsHealthy {
