@@ -16,67 +16,59 @@ import (
 )
 
 func LoadConfigFile(configPath string) ([]byte, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		cwd = "/"
-	}
-	defPath := path.Join(cwd, configPath)
-
-	content, err := os.ReadFile(defPath)
+	content, err := os.ReadFile(configPath)
 
 	if err != nil {
-		return nil, fmt.Errorf("error during the config file reading at: %s", defPath)
+		return nil, fmt.Errorf("error during the config file reading at: %s \n %v", configPath, err)
 	}
 
 	return content, nil
 }
 
 func DiscoverConfigFormat(configPath string) (string, error) {
-	ext := path.Ext(configPath)
-	var format string
-
-	if ext == "" {
-		return "", fmt.Errorf("invalid path provided")
+	ext := strings.ToLower(path.Ext(configPath))
+	switch ext {
+	case ".json":
+		return "json", nil
+	case ".yml", ".yaml":
+		return "yaml", nil
+	case "":
+		return "", fmt.Errorf("invalid path provided (no extension)")
+	default:
+		return "", fmt.Errorf("unsupported config extension: %s", ext)
 	}
-
-	if strings.Contains(ext, "json") {
-		format = "json"
-	} else if strings.Contains(ext, "yml") {
-		format = "yaml"
-	}
-
-	return format, nil
 }
 
 func ParseConfig(content []byte, format string) (*Config, error) {
 	var config Config
-	var err error
-
-	if format == "json" {
-		err = json.Unmarshal(content, &config)
-	} else {
-		err = yaml.Unmarshal(content, &content)
+	switch format {
+	case "json":
+		if err := json.Unmarshal(content, &config); err != nil {
+			return nil, err
+		}
+	case "yaml":
+		if err := yaml.Unmarshal(content, &config); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unknown format: %s", format)
 	}
-
-	if err != nil {
-		return nil, err
-	}
-
 	return &config, nil
 }
 
 func buildServerURL(server *Server) (string, error) {
-	url, err := url.Parse(server.URL)
-
-	if err != nil || server.URL == "" {
-		url, err = url.Parse(fmt.Sprintf("%s://%s:%d", server.Protocol, server.Host, server.Port))
-
-		if err != nil {
-			return "", nil
+	if server == nil {
+		return "", fmt.Errorf("nil server")
+	}
+	if server.URL != "" {
+		if _, err := url.Parse(server.URL); err == nil {
+			return server.URL, nil
 		}
 	}
-
-	return url.String(), nil
+	if server.Protocol == "" || server.Host == "" || server.Port == 0 {
+		return "", fmt.Errorf("incomplete server fields for URL (need protocol, host, port)")
+	}
+	return fmt.Sprintf("%s://%s:%d", server.Protocol, server.Host, server.Port), nil
 }
 
 func SerializeHealthCheckStatus(status *HealthCheckStatus) (string, error) {

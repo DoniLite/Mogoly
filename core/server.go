@@ -11,7 +11,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -73,40 +72,28 @@ func Ping(w http.ResponseWriter, r *http.Request) {
 }
 
 func HealthChecker(server *Server) (bool, error) {
-	serverURL, err := url.Parse(server.URL)
-	var responseBody []byte
-
-	if server.URL == "" || err != nil {
-		serverURL, err = url.Parse(fmt.Sprintf("%s://%s:%d", server.Protocol, server.Host, server.Port))
-		if err != nil {
-			return false, err
-		}
-	}
-
-	req, err := http.NewRequest("GET", serverURL.String(), &io.LimitedReader{})
-
+	raw, err := buildServerURL(server)
 	if err != nil {
 		return false, err
 	}
-
-	client := &http.Client{}
-
+	req, err := http.NewRequest(http.MethodGet, raw, nil)
+	if err != nil {
+		return false, err
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
 	res, err := client.Do(req)
-
 	if err != nil {
 		return false, err
 	}
-
-	_, err = res.Body.Read(responseBody)
-
-	if err != nil {
-		return false, err
-	}
-
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			log.Printf("Error while closing the body reader: %v", err)
+		}
+	}()
 	if res.StatusCode >= 400 {
-		return false, fmt.Errorf("server respond with error code: %s body: %s", fmt.Sprint(res.StatusCode), string(responseBody))
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		return false, fmt.Errorf("server responded %d: %s", res.StatusCode, string(body))
 	}
-
 	return true, nil
 }
 
@@ -116,47 +103,60 @@ type RateLimitMiddlewareConfig struct {
 }
 
 func RateLimiterMiddleware(config any) func(next http.Handler) http.Handler {
-
-	conf, ok := config.(*RateLimitMiddlewareConfig)
-	if !ok {
-		log.Printf("WARNING: RateLimiterMiddleware received config of unexpected type (%T). Defaulting to passthrough handler.", config)
-		return func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				next.ServeHTTP(w, r)
-			})
+	conf := RateLimitMiddlewareConfig{ReqPerMinute: requestsPerMinute, LimitWindow: rateLimitWindow}
+	switch v := config.(type) {
+	case *RateLimitMiddlewareConfig:
+		if v != nil {
+			conf = *v
+		}
+	case RateLimitMiddlewareConfig:
+		conf = v
+	case map[string]any:
+		if rpm, ok := v["request_per_minute"]; ok {
+			switch x := rpm.(type) {
+			case float64:
+				conf.ReqPerMinute = int(x)
+			case int:
+				conf.ReqPerMinute = x
+			}
+		}
+		if lw, ok := v["limit_window"]; ok {
+			switch x := lw.(type) {
+			case string:
+				if d, err := time.ParseDuration(x); err == nil {
+					conf.LimitWindow = d
+				}
+			case float64:
+				conf.LimitWindow = time.Duration(int64(x)) * time.Second
+			}
 		}
 	}
-
-	if conf.ReqPerMinute > 0 {
-		requestsPerMinute = conf.ReqPerMinute
+	if conf.ReqPerMinute <= 0 {
+		conf.ReqPerMinute = 5
 	}
-	if conf.LimitWindow > 0 {
-		rateLimitWindow = conf.LimitWindow
+	if conf.LimitWindow <= 0 {
+		conf.LimitWindow = time.Minute
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := r.RemoteAddr // or r.Header["X-Forwarded-For"][0] when the request comes from proxy
+			ip := r.RemoteAddr
 
 			mu.Lock()
 			defer mu.Unlock()
 
 			now := time.Now()
-			requestTimes := visitors[ip]
-
-			var filtered []time.Time
-			for _, t := range requestTimes {
-				if now.Sub(t) < rateLimitWindow {
-					filtered = append(filtered, t)
+			keep := visitors[ip][:0]
+			for _, t := range visitors[ip] {
+				if now.Sub(t) < conf.LimitWindow {
+					keep = append(keep, t)
 				}
 			}
-
-			if len(filtered) >= requestsPerMinute {
+			if len(keep) >= conf.ReqPerMinute {
 				http.Error(w, "Max request exceed", http.StatusTooManyRequests)
 				return
 			}
 
-			filtered = append(filtered, now)
-			visitors[ip] = filtered
+			visitors[ip] = append(keep, now)
 
 			next.ServeHTTP(w, r)
 		})
@@ -235,12 +235,15 @@ func ServeHTTP(addr string) *http.Server {
 func ServeHTTPS(addr string, cm *CertManager) *http.Server {
 	ts := &http.Server{Addr: addr, Handler: http.HandlerFunc(routeHandler)}
 	ts.TLSConfig = &tls.Config{GetCertificate: cm.GetCertificate, MinVersion: tls.VersionTLS12}
+	// Create listener *first* so we can expose the effective addr (when :0 was requested).
+	ln, err := tls.Listen("tcp", addr, ts.TLSConfig)
+	if err != nil {
+		log.Fatalf("https listen: %v", err)
+	}
+	// Publish the effective addr (e.g., 127.0.0.1:51327) for tests and callers.
+	ts.Addr = ln.Addr().String()
+	log.Printf("HTTPS listening on %s", ts.Addr)
 	go func() {
-		log.Printf("HTTPS listening on %s", addr)
-		ln, err := tls.Listen("tcp", addr, ts.TLSConfig)
-		if err != nil {
-			log.Fatalf("https listen: %v", err)
-		}
 		if err := ts.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("https server: %v", err)
 		}

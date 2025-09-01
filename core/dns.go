@@ -51,7 +51,22 @@ func ServeDNS(bind string, isLocal func(string) bool, forwardTo string) {
 	s := &DNSServer{isLocal: isLocal, forwardTo: forwardTo}
 	dns.HandleFunc(".", s.ServeDNS)
 	udpServer := &dns.Server{Addr: bind, Net: "udp"}
-	cpServer := &dns.Server{Addr: bind, Net: "tcp"}
+	tcpServer := &dns.Server{Addr: bind, Net: "tcp"}
 	go func() { log.Printf("DNS(udp) listening on %s", bind); log.Fatal(udpServer.ListenAndServe()) }()
-	go func() { log.Printf("DNS(tcp) listening on %s", bind); log.Fatal(cpServer.ListenAndServe()) }()
+	go func() { log.Printf("DNS(tcp) listening on %s", bind); log.Fatal(tcpServer.ListenAndServe()) }()
+}
+
+// Starts UDP+TCP DNS servers and returns a stop function.
+func StartDNSServer(bind string, isLocal func(string) bool, forwardTo string) (stop func(), err error) {
+	s := &DNSServer{isLocal: isLocal, forwardTo: forwardTo}
+	mux := dns.NewServeMux()
+	mux.HandleFunc(".", s.ServeDNS)
+	udpServer := &dns.Server{Addr: bind, Net: "udp", Handler: mux}
+	tcpServer := &dns.Server{Addr: bind, Net: "tcp", Handler: mux}
+	go func() { log.Printf("DNS(udp) listening on %s", bind); _ = udpServer.ListenAndServe() }()
+	go func() { log.Printf("DNS(tcp) listening on %s", bind); _ = tcpServer.ListenAndServe() }()
+	return func() {
+		_ = udpServer.Shutdown()
+		_ = tcpServer.Shutdown()
+	}, nil
 }
