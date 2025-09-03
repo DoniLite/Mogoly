@@ -49,7 +49,6 @@ type BalancerStrategy interface {
 }
 
 type Logs struct {
-	Target  string
 	LogType LogType
 	Message string
 }

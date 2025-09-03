@@ -6,7 +6,6 @@ package core
 
 import (
 	"crypto/tls"
-	"log"
 	"net/http/httputil"
 	"net/url"
 	"os"
@@ -48,7 +47,7 @@ func NewProxy(target *url.URL) *httputil.ReverseProxy {
 
 func NewCertManager(cacheDir, email, envKey string) *CertManager {
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
-		log.Printf("cert cache mkdir: %v", err)
+		logf(LOG_ERROR, "[CERT MANAGER]: cert cache mkdir error: %s", err.Error())
 	}
 	cfg := certmagic.New(cache, certmagic.Config{})
 	userACME := certmagic.NewACMEIssuer(cfg, certmagic.ACMEIssuer{
@@ -73,4 +72,8 @@ func GetLogger() Logger {
 	}
 
 	return logger
+}
+
+func SetLogger(lgr Logger) {
+	logger = lgr
 }
