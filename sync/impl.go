@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -24,10 +23,10 @@ func (s *Server) handleMessage(msg *Message, client *Connection) error {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ws, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("ServeHTTP: Failed to upgrade connection: %v\n", err)
+		logf(LOG_ERROR, "ServeHTTP: Failed to upgrade connection: %v\n", err)
 		return
 	}
-	log.Printf("ServeHTTP: Client connected from %s\n", ws.RemoteAddr())
+	logf(LOG_ERROR, "ServeHTTP: Client connected from %s\n", ws.RemoteAddr())
 
 	conn := NewConnection(ws)
 
@@ -55,7 +54,7 @@ func (c *Client) Connect(serverUrl string, headers http.Header) error {
 	c.headers = headers
 	c.mu.Unlock()
 
-	log.Printf("Client: Attempting to connect to %s...\n", serverUrl)
+	logf(LOG_INFO, "Client: Attempting to connect to %s...\n", serverUrl)
 	ws, resp, err := c.dialer.Dial(c.connUrl, c.headers)
 	if err != nil {
 		errMsg := fmt.Sprintf("Client: Failed to connect to %s: %v", c.connUrl, err)
@@ -67,12 +66,12 @@ func (c *Client) Connect(serverUrl string, headers http.Header) error {
 				errMsg = fmt.Sprintf("%s - Body: %s", errMsg, string(body))
 			}
 			if err != nil {
-				log.Printf("Error closing response body: %v", err)
+				logf(LOG_ERROR, "Error closing response body: %v", err)
 			}
 		}
 		return fmt.Errorf("an error occurred %s", errMsg)
 	}
-	log.Printf("Client: Successfully connected to %s\n", c.connUrl)
+	logf(LOG_INFO, "Client: Successfully connected to %s\n", c.connUrl)
 
 	c.mu.Lock()
 	c.conn = NewConnection(ws)
@@ -86,17 +85,17 @@ func (c *Client) Connect(serverUrl string, headers http.Header) error {
 }
 
 func (c *Client) handleIncomingMessage(msg *Message, conn *Connection) error {
-	log.Printf("Client: Received message type %d (ReqID: %s)\n", msg.Action.Type, msg.RequestID) // Debug
+	logf(LOG_INFO, "Client: Received message type %d (ReqID: %s)\n", msg.Action.Type, msg.RequestID)
 
 	// Check if it's a pending request
 	c.pendingMu.Lock()
 	if msg.RequestID != "" {
 		if respChan, ok := c.pendingRequests[msg.RequestID]; ok {
-			log.Printf("Client: Correlated response for RequestID %s\n", msg.RequestID)
+			logf(LOG_INFO, "Client: Correlated response for RequestID %s\n", msg.RequestID)
 			select {
 			case respChan <- msg:
 			default:
-				log.Printf("Warning: No listener for response channel of RequestID %s\n", msg.RequestID)
+				logf(LOG_INFO, "Warning: No listener for response channel of RequestID %s\n", msg.RequestID)
 			}
 			delete(c.pendingRequests, msg.RequestID)
 			c.pendingMu.Unlock()
@@ -108,7 +107,7 @@ func (c *Client) handleIncomingMessage(msg *Message, conn *Connection) error {
 	select {
 	case c.Incoming <- msg:
 	default:
-		log.Printf("Warning: Client Incoming channel full. Message type %d dropped.\n", msg.Action.Type)
+		logf(LOG_INFO, "Warning: Client Incoming channel full. Message type %d dropped.\n", msg.Action.Type)
 	}
 	return nil
 }
@@ -117,18 +116,18 @@ func (c *Client) handleDisconnect(conn *Connection) {
 	c.mu.Lock()
 	if c.conn != conn {
 		c.mu.Unlock()
-		log.Printf("Client: Received disconnect signal for an old/stale connection (%p)\n", conn.ws)
+		logf(LOG_INFO, "Client: Received disconnect signal for an old/stale connection (%p)\n", conn.ws)
 		return
 	}
 	c.isConnected = false
 	c.conn = nil
-	log.Println("Client: Connection lost.")
+	logf(LOG_INFO, "Client: Connection lost.")
 	c.mu.Unlock()
 
 	// Clean the pending request for this connection
 	c.pendingMu.Lock()
 	if len(c.pendingRequests) > 0 {
-		log.Printf("Client: Cleaning up %d pending requests due to disconnect.\n", len(c.pendingRequests))
+		logf(LOG_INFO, "Client: Cleaning up %d pending requests due to disconnect.\n", len(c.pendingRequests))
 		for reqID, respChan := range c.pendingRequests {
 			close(respChan)
 			delete(c.pendingRequests, reqID)
@@ -147,7 +146,7 @@ func (c *Client) Send(msg *Message) error {
 	if !isConnected || conn == nil {
 		return fmt.Errorf("client not connected")
 	}
-	log.Printf("Client: Sending message type %d async\n", msg.Action.Type) // Debug
+	logf(LOG_INFO, "Client: Sending message type %d async\n", msg.Action.Type) // Debug
 	conn.SendMsg(msg)
 	return nil
 }
@@ -186,13 +185,13 @@ func (c *Client) SendRequest(ctx context.Context, msgType Action_Type, payload a
 	}()
 
 	// Send the request
-	log.Printf("Client: Sending request %s (Type: %d)\n", requestID, msg.Action.Type)
+	logf(LOG_INFO, "Client: Sending request %s (Type: %d)\n", requestID, msg.Action.Type)
 	conn.SendMsg(msg)
 
 	// Waiting for the response
 	select {
 	case resp := <-respChan:
-		log.Printf("Client: Received response for request %s (Type: %d, Error: '%s')\n", requestID, resp.Action.Type, resp.Error)
+		logf(LOG_INFO, "Client: Received response for request %s (Type: %d, Error: '%s')\n", requestID, resp.Action.Type, resp.Error)
 		if resp.Error != "" || resp.Action.Type == ERROR {
 			errMsg := resp.Error
 			if errMsg == "" {
@@ -207,7 +206,7 @@ func (c *Client) SendRequest(ctx context.Context, msgType Action_Type, payload a
 		return resp, nil
 
 	case <-ctx.Done():
-		log.Printf("Client: Context done while waiting for response to request %s: %v\n", requestID, ctx.Err())
+		logf(LOG_INFO, "Client: Context done while waiting for response to request %s: %v\n", requestID, ctx.Err())
 		return nil, fmt.Errorf("request %s timed out or was canceled: %w", requestID, ctx.Err())
 	}
 }
@@ -217,7 +216,7 @@ func (c *Client) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	log.Println("Client: Close called.")
+	logf(LOG_INFO, "Client: Close called.")
 
 	if c.conn != nil && c.isConnected {
 		c.conn.CloseSend()
