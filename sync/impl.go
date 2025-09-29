@@ -7,7 +7,6 @@ package sync
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -42,47 +41,6 @@ func (s *Server) Run() {
 }
 
 // Client
-
-// Connect to the given server url websocket with the provided headers.
-func (c *Client) Connect(serverUrl string, headers http.Header) error {
-	c.mu.Lock()
-	if c.isConnected {
-		c.mu.Unlock()
-		return fmt.Errorf("client already connected")
-	}
-	c.connUrl = serverUrl
-	c.headers = headers
-	c.mu.Unlock()
-
-	logf(LOG_INFO, "Client: Attempting to connect to %s...\n", serverUrl)
-	ws, resp, err := c.dialer.Dial(c.connUrl, c.headers)
-	if err != nil {
-		errMsg := fmt.Sprintf("Client: Failed to connect to %s: %v", c.connUrl, err)
-		if resp != nil {
-			errMsg = fmt.Sprintf("%s (Status: %s)", errMsg, resp.Status)
-			body, _ := io.ReadAll(resp.Body)
-			err = resp.Body.Close()
-			if len(body) > 0 {
-				errMsg = fmt.Sprintf("%s - Body: %s", errMsg, string(body))
-			}
-			if err != nil {
-				logf(LOG_ERROR, "Error closing response body: %v", err)
-			}
-		}
-		return fmt.Errorf("an error occurred %s", errMsg)
-	}
-	logf(LOG_INFO, "Client: Successfully connected to %s\n", c.connUrl)
-
-	c.mu.Lock()
-	c.conn = NewConnection(ws)
-	c.isConnected = true
-	c.mu.Unlock()
-
-	go c.conn.writePump()
-	go c.conn.readPump(c.handleIncomingMessage, c.handleDisconnect)
-
-	return nil
-}
 
 func (c *Client) handleIncomingMessage(msg *Message, conn *Connection) error {
 	logf(LOG_INFO, "Client: Received message type %d (ReqID: %s)\n", msg.Action.Type, msg.RequestID)
