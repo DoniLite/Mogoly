@@ -18,6 +18,7 @@ const (
 	KILL_SERVER
 	REBOOT_SERVER
 	ERROR
+	PING
 )
 
 type Action struct {

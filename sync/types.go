@@ -11,6 +11,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type LogType = int
+
+const (
+	LOG_INFO LogType = iota
+	LOG_DEBUG
+	LOG_ERROR
+)
+
 type Client struct {
 	conn *Connection // Shared wrapper for WebSocket connection
 
@@ -60,3 +68,10 @@ type TaskStatusPayload struct {
 	TaskName string `json:"task_name"`
 	Status   string `json:"status"`
 }
+
+type Logs struct {
+	LogType LogType
+	Message string
+}
+
+type Logger chan any

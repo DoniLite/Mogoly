@@ -1,7 +1,6 @@
 package sync
 
 import (
-	"log"
 	"sync"
 )
 
@@ -19,33 +18,33 @@ type Hub struct {
 
 func newHub(handler func(msg *Message, client *Connection) error) *Hub {
 	return &Hub{
-		clients:    make(map[*Connection]bool),
-		register:   make(chan *Connection),
-		unregister: make(chan *Connection),
-		broadcast:  make(chan *Message),
+		clients:        make(map[*Connection]bool),
+		register:       make(chan *Connection),
+		unregister:     make(chan *Connection),
+		broadcast:      make(chan *Message),
 		messageHandler: handler,
 	}
 }
 
 // handling registration/removing clients connection asynchronously
 func (h *Hub) run() {
-	log.Println("Hub: Starting run loop")
+	logf(LOG_INFO, "Hub: Starting run loop")
 	for {
 		select {
 		case conn := <-h.register:
 			h.mu.Lock()
 			h.clients[conn] = true
 			h.mu.Unlock()
-			log.Printf("Hub: Client registered (%p). Total clients: %d\n", conn.ws, len(h.clients))
+			logf(LOG_INFO, "Hub: Client registered (%p). Total clients: %d\n", conn.ws, len(h.clients))
 
 		case conn := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[conn]; ok {
 				delete(h.clients, conn)
 				conn.CloseSend()
-				log.Printf("Hub: Client unregistered (%p). Total clients: %d\n", conn.ws, len(h.clients))
+				logf(LOG_INFO, "Hub: Client unregistered (%p). Total clients: %d\n", conn.ws, len(h.clients))
 			} else {
-				log.Printf("Hub: Unregister request for non-existent client (%p)\n", conn.ws)
+				logf(LOG_INFO, "Hub: Unregister request for non-existent client (%p)\n", conn.ws)
 			}
 			h.mu.Unlock()
 
@@ -55,7 +54,7 @@ func (h *Hub) run() {
 				select {
 				case conn.send <- message:
 				default:
-					log.Printf("Hub: Broadcast failed for client %p, closing its send channel.\n", conn.ws)
+					logf(LOG_ERROR, "Hub: Broadcast failed for client %p, closing its send channel.\n", conn.ws)
 					close(conn.send)
 					delete(h.clients, conn)
 				}
@@ -75,6 +74,6 @@ func (h *Hub) handleIncomingMessage(msg *Message, conn *Connection) error {
 	if h.messageHandler != nil {
 		return h.messageHandler(msg, conn)
 	}
-	log.Printf("Hub: No message handler configured, dropping message type %d from %p\n", msg.Action.Type, conn.ws)
+	logf(LOG_ERROR, "Hub: No message handler configured, dropping message type %d from %p\n", msg.Action.Type, conn.ws)
 	return nil
 }

@@ -9,8 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +30,7 @@ var (
 )
 
 func BuildRouter(config *Config) {
+	logf(LOG_INFO, "[ROUTER]: Building new router for the global server state")
 	rs := &RouterState{
 		m: make(map[string]http.Handler),
 		s: make(map[string]*Server),
@@ -41,6 +42,7 @@ func BuildRouter(config *Config) {
 
 	rs.globalConfig = config
 	currentRouter = rs
+	logf(LOG_INFO, "[ROUTER]: New router builded and assigned correctly")
 }
 
 func GetRouter() *RouterState {
@@ -48,16 +50,19 @@ func GetRouter() *RouterState {
 }
 
 func createSingleHttpServer(s *Server) http.Handler {
+	logf(LOG_INFO, "[SERVER]: Creating new http handler for %s server", s.Name)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.ServeHTTP)
 
 	var middlewares []func(http.Handler) http.Handler
 
+	logf(LOG_INFO, "[SERVER]: Assigning middlewares for the %s server", s.Name)
 	for _, v := range s.Middlewares {
 		m := MiddlewaresList[MiddleWareName(v.Name)]
 
 		middlewares = append(middlewares, m.Fn(v.Config))
 	}
+	logf(LOG_INFO, "[SERVER]: %d assigned to the %s server", len(middlewares), s.Name)
 
 	return ChainMiddleware(mux, middlewares...)
 }
@@ -67,27 +72,31 @@ func Ping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, err := w.Write([]byte("pong"))
 	if err != nil {
-		log.Printf("Error writing response: %v", err)
+		logf(LOG_ERROR, "[PING_HANDLER]: Error writing response: %v", err)
 	}
 }
 
 func HealthChecker(server *Server) (bool, error) {
+	logf(LOG_INFO, "[HEALTH_CHECKER]: Initializing health checking for the %s server", server.Name)
 	raw, err := buildServerURL(server)
 	if err != nil {
+		logf(LOG_ERROR, "[HEALTH_CHECKER]: Error during the %s server url building \nerror: %s", server.Name, err.Error())
 		return false, err
 	}
 	req, err := http.NewRequest(http.MethodGet, raw, nil)
 	if err != nil {
+		logf(LOG_ERROR, "[HEALTH_CHECKER]: Error during the http request init for the %s server \nerror: %s", server.Name, err.Error())
 		return false, err
 	}
 	client := &http.Client{Timeout: 3 * time.Second}
+	logf(LOG_DEBUG, "[HEALTH_CHECKER]: New http request to %v", client)
 	res, err := client.Do(req)
 	if err != nil {
 		return false, err
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
-			log.Printf("Error while closing the body reader: %v", err)
+			logf(LOG_ERROR, "[HEALTH_CHECKER]: Error while closing the body reader: %v", err)
 		}
 	}()
 	if res.StatusCode >= 400 {
@@ -194,11 +203,13 @@ func ChainMiddleware(handler http.Handler, middlewares ...func(http.Handler) htt
 func routeHandler(w http.ResponseWriter, r *http.Request) {
 	rs := GetRouter()
 	if rs == nil {
+		logf(LOG_ERROR, "[ROUTER]: Router not ready yet")
 		http.Error(w, "router not ready", http.StatusServiceUnavailable)
 		return
 	}
 	b, ok := rs.m[strings.ToLower(r.Host)]
 	if !ok {
+		logf(LOG_ERROR, "[ROUTER]: Not found route for %s", strings.ToLower(r.Host))
 		http.NotFound(w, r)
 		return
 	}
@@ -208,6 +219,7 @@ func routeHandler(w http.ResponseWriter, r *http.Request) {
 func httpEntry(w http.ResponseWriter, r *http.Request) {
 	rs := GetRouter()
 	if rs == nil {
+		logf(LOG_ERROR, "[ROUTER]: Router not ready yet")
 		http.Error(w, "router not ready", http.StatusServiceUnavailable)
 		return
 	}
@@ -215,6 +227,7 @@ func httpEntry(w http.ResponseWriter, r *http.Request) {
 		url := *r.URL
 		url.Scheme = "https"
 		url.Host = r.Host
+		logf(LOG_INFO, "[ROUTER]: Redirecting new incoming request from host: %s to https url: %s", strings.ToLower(r.Host), url.String())
 		http.Redirect(w, r, url.String(), http.StatusMovedPermanently)
 		return
 	}
@@ -224,9 +237,10 @@ func httpEntry(w http.ResponseWriter, r *http.Request) {
 func ServeHTTP(addr string) *http.Server {
 	hs := &http.Server{Addr: addr, Handler: http.HandlerFunc(httpEntry)}
 	go func() {
-		log.Printf("HTTP listening on %s", addr)
+		logf(LOG_INFO, "[HTTP_SERVER]: HTTP listening on %s", addr)
 		if err := hs.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("http server: %v", err)
+			logf(LOG_ERROR, "[HTTP_SERVER]: http server error: %v", err)
+			os.Exit(1)
 		}
 	}()
 	return hs
@@ -238,14 +252,16 @@ func ServeHTTPS(addr string, cm *CertManager) *http.Server {
 	// Create listener *first* so we can expose the effective addr (when :0 was requested).
 	ln, err := tls.Listen("tcp", addr, ts.TLSConfig)
 	if err != nil {
-		log.Fatalf("https listen: %v", err)
+		logf(LOG_ERROR, "[HTTPS_SERVER]: https server error: %v", err)
+		os.Exit(1)
 	}
 	// Publish the effective addr (e.g., 127.0.0.1:51327) for tests and callers.
 	ts.Addr = ln.Addr().String()
-	log.Printf("HTTPS listening on %s", ts.Addr)
+	logf(LOG_INFO, "[HTTPS_SERVER]: HTTPS listening on %s", ts.Addr)
 	go func() {
 		if err := ts.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("https server: %v", err)
+			logf(LOG_ERROR, "[HTTPS_SERVER]: https server error: %v", err)
+			os.Exit(1)
 		}
 	}()
 	return ts

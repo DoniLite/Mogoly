@@ -20,9 +20,11 @@ func (server *Server) UpgradeProxy() error {
 	if server == nil {
 		return errors.New("nil receiver: server")
 	}
+	server.logf(LOG_INFO, "[SERVER]: Checking the reversed proxy for the server %s", server.Name)
 	server.mu.Lock()
 	defer server.mu.Unlock()
 	if server.proxy != nil {
+		server.logf(LOG_INFO, "[SERVER]: Existent proxy detected for the server %s", server.Name)
 		return nil
 	}
 	serverURL, err := buildServerURL(server)
@@ -33,14 +35,17 @@ func (server *Server) UpgradeProxy() error {
 	if err != nil {
 		return err
 	}
+	server.logf(LOG_INFO, "[SERVER]: Upgrading the reversed proxy for the server %s", server.Name)
 	server.proxy = NewProxy(u)
 	return nil
 }
 
 func (server *Server) AddNewBalancingServer(bs *Server) {
 	if bs == nil {
+		server.logf(LOG_INFO, "[SERVER]: Empty balancing server received for the server %s", server.Name)
 		return
 	}
+	server.logf(LOG_INFO, "[SERVER]: Adding new balancing server %s to %s", bs.Name, server.Name)
 	server.BalancingServers = append(server.BalancingServers, bs)
 }
 
@@ -53,6 +58,7 @@ func (server *Server) DelBalancingServer(name string) {
 		if s != nil && s.Name != name {
 			filtered = append(filtered, s)
 		}
+		server.logf(LOG_INFO, "[SERVER]: Removing server %s", name)
 	}
 	server.BalancingServers = filtered
 }
@@ -75,6 +81,7 @@ func (server *Server) CheckHealthAll() (*HealthCheckStatus, error) {
 	servers := slices.Clone(server.BalancingServers)
 	server.mu.Unlock()
 
+	server.logf(LOG_INFO, "[SERVER]: Preparing health checking for the %s server instances", server.Name)
 	var hc HealthCheckStatus
 	start := time.Now()
 
@@ -101,6 +108,7 @@ func (server *Server) CheckHealthAll() (*HealthCheckStatus, error) {
 	}
 
 	hc.Duration = time.Since(start)
+	server.logf(LOG_INFO, "[SERVER]: Finished health check for the %s server instances in %vs", server.Name, hc.Duration.Seconds())
 	return &hc, nil
 }
 
@@ -130,6 +138,7 @@ func (server *Server) CheckHealthSelf() (*ServerStatus, error) {
 // RollBack replaces the current balancing set with the provided list atomically.
 func (server *Server) RollBack(servers []*Server) {
 	server.mu.Lock()
+	server.logf(LOG_INFO, "[PROXY]: Rollback for the %s server with %v", server.Name, servers)
 	server.BalancingServers = slices.Clone(servers)
 	server.mu.Unlock()
 }
@@ -147,6 +156,7 @@ func (server *Server) RollBackAny(name string, newServer *Server) error {
 	}
 	for i, s := range server.BalancingServers {
 		if s != nil && s.Name == name {
+			server.logf(LOG_INFO, "[PROXY]: Rollback %s server with %v", name, newServer)
 			server.BalancingServers[i] = newServer
 			return nil
 		}
@@ -169,12 +179,14 @@ func (server *Server) GetNextServer() (*Server, error) {
 		server.idx = (server.idx + 1) % n
 		cand := server.BalancingServers[server.idx]
 		if cand != nil && cand.IsHealthy { // prefer healthy
+			server.logf(LOG_INFO, "[PROXY]: Next server found for the %s proxy with id %d", server.Name, server.idx)
 			return cand, nil
 		}
 	}
 	// Fallback: return next even if unhealthy to avoid total outage
 	cand := server.BalancingServers[server.idx]
 	if cand != nil {
+		server.logf(LOG_INFO, "[PROXY]: Next unhealthy server found for the %s proxy with id %d", server.Name, server.idx)
 		return cand, nil
 	}
 	return nil, fmt.Errorf("no usable backend server found")
@@ -188,24 +200,28 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err     error
 	)
 
-	server.logf(LOG_INFO, "[Proxy]: New incoming request <- %s Method: %s", r.URL.Path, r.Method)
-	server.logf(LOG_INFO, "[Load Balancer]: Selecting next server")
+	server.logf(LOG_INFO, "[Proxy]: New incoming request <- %s Method for %s: %s", r.URL.Path, r.Method, server.Name)
+	server.logf(LOG_INFO, "[Load Balancer]: Selecting next server for the %s proxy", server.Name)
 
 	if len(server.BalancingServers) > 0 {
 		backend, err = server.GetNextServer()
 		if err != nil {
-			server.logf(LOG_ERROR, "[Load Balancer]: %v", err)
+			server.logf(LOG_ERROR, "[Load Balancer] error for the %s server: %v", server.Name, err)
 			http.Error(w, "No backend available", http.StatusServiceUnavailable)
 			return
 		}
 		if upErr := backend.UpgradeProxy(); upErr != nil {
-			server.logf(LOG_ERROR, "failed to init backend proxy: %v", upErr)
+			server.logf(LOG_ERROR, "failed to init backend proxy for the %s server: %v", backend.Name, upErr)
+			http.Error(w, "No proxy service available", http.StatusInternalServerError)
+			return
 		}
 	} else {
 		// Single-node mode: proxy to self
 		backend = server
 		if upErr := server.UpgradeProxy(); upErr != nil {
-			server.logf(LOG_ERROR, "failed to init proxy: %v", upErr)
+			server.logf(LOG_ERROR, "failed to init proxy for the %s server: %v", server.Name, upErr)
+			http.Error(w, "No proxy service available", http.StatusInternalServerError)
+			return
 		}
 	}
 
@@ -225,14 +241,14 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Clone request with context and body; copy headers
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, target.String(), r.Body)
 	if err != nil {
-		server.logf(LOG_ERROR, "[Fatal]: cannot create outbound request: %v", err)
+		server.logf(LOG_ERROR, "[Fatal]: cannot create outbound request for %s server: %v", server.Name, err)
 		http.Error(w, "Failed to create backend request", http.StatusInternalServerError)
 		return
 	}
 	req.Header = r.Header.Clone()
 	appendForwardHeaders(req.Header, r, baseURL.Scheme)
 
-	server.logf(LOG_INFO, "[Proxy]: Forwarding %s -> %s (backend ID: %s)", r.URL.String(), target.String(), backend.ID)
+	server.logf(LOG_INFO, "[Proxy]: Forwarding %s -> %s (backend Name: %s)", r.URL.String(), target.String(), backend.Name)
 
 	// Delegate to the preconfigured reverse proxy for the backend.
 	backend.proxy.ServeHTTP(w, req)
@@ -247,19 +263,21 @@ func (rs *RouterState) AddServer(server *Server) {
 	rs.s[strings.ToLower(server.Name)] = server
 }
 
+func (rs *RouterState) RemoveServer(server *Server) {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	delete(rs.m, strings.ToLower(server.Name))
+	delete(rs.s, strings.ToLower(server.Name))
+}
+
 // --- helpers ---
 
-func (s *Server) logf(level int, format string, args ...any) {
-	currentLogger := GetLogger()
-	if s == nil || currentLogger == nil {
+func (s *Server) logf(level LogType, format string, args ...any) {
+	if s == nil {
 		return
 	}
 	// Non-blocking send; drop if channel is full
-	msg := fmt.Sprintf(format, args...)
-	select {
-	case currentLogger <- Logs{Message: msg, LogType: level}:
-	default:
-	}
+	logf(level, format, args...)
 }
 
 func parseServerURL(s *Server) (*url.URL, error) {

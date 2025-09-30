@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DoniLite/Mogoly/cloud"
 	certmagic "github.com/caddyserver/certmagic"
 )
 
@@ -49,15 +50,16 @@ type BalancerStrategy interface {
 }
 
 type Logs struct {
-	Target  string
 	LogType LogType
 	Message string
 }
 
 type Config struct {
-	Servers             []*Server `json:"server" yaml:"server"` // The servers instances
-	HealthCheckInterval int       `json:"healthcheck_interval,omitempty" yaml:"healthcheck_interval,omitempty"`
-	LogOutput           string    `json:"log_output,omitempty" yaml:"log_output,omitempty"`
+	Servers             []*Server              `json:"server" yaml:"server"` // The servers instances
+	HealthCheckInterval int                    `json:"healthcheck_interval,omitempty" yaml:"healthcheck_interval,omitempty"`
+	LogOutput           string                 `json:"log_output,omitempty" yaml:"log_output,omitempty"`
+	Stream              bool                   `json:"stream,omitempty" yaml:"stream,omitempty"`
+	Services            []*cloud.ServiceConfig `json:"services,omitempty" yaml:"services,omitempty"`
 }
 
 // The result of a health checking process for a server

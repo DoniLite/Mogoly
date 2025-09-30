@@ -6,7 +6,6 @@ package sync
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"github.com/gorilla/websocket"
@@ -21,13 +20,13 @@ func NewClient() *Client {
 	}
 }
 
-func NewServer(onMsg HandlerFunc, originChecker func (r *http.Request) bool) *Server {
-	server :=  &Server{
+func NewServer(onMsg HandlerFunc, originChecker func(r *http.Request) bool) *Server {
+	server := &Server{
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 			CheckOrigin: func(r *http.Request) bool {
-				log.Printf("CheckOrigin: Checking origin %s\n", r.Header.Get("Origin"))
+				logf(LOG_INFO, "CheckOrigin: Checking origin %s\n", r.Header.Get("Origin"))
 				return originChecker(r)
 			},
 		},
