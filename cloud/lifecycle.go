@@ -129,7 +129,9 @@ func (m *CloudManager) GetInstanceLogs(id string, tailLines int) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("error fetching logs: %v", err)
 	}
-	defer reader.Close()
+	defer func() {
+		_ = reader.Close()
+	}()
 
 	// Read all logs
 	logs, err := io.ReadAll(reader)

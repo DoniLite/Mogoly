@@ -420,7 +420,9 @@ func (m *CloudManager) CreateTraefikBundle(acmeEmail string) (string, error) {
 		log.Printf("warning: image pull failed (non-fatal): %v", err)
 	} else {
 		// Read and close the response body to avoid resource leak
-		defer reader.Close()
+		defer func() {
+			_ = reader.Close()
+		}()
 		// Discard the pull output
 		_, _ = io.Copy(io.Discard, reader)
 	}
