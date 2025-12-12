@@ -3,6 +3,7 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"strconv"
 	"strings"
@@ -41,6 +42,8 @@ func (m *CloudManager) ensureNetwork() error {
 
 // return the next port available
 func (m *CloudManager) getNextPort() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.portCounter++
 	return m.portCounter
 }
@@ -148,7 +151,8 @@ func (m *CloudManager) getDockerConfig(config ServiceConfig) (string, map[string
 // The service is created with default values if not provided
 // After creating the instance, it will be started and exposed to a public port on your machine
 func (m *CloudManager) CreateInstance(config ServiceConfig) (*ServiceInstance, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	if config.Username == "" {
 		config.Username = "admin"
@@ -317,19 +321,27 @@ func (m *CloudManager) CreateInstance(config ServiceConfig) (*ServiceInstance, e
 	}
 
 	instance.Status = "running"
+
+	// Thread-safe instance storage
+	m.mu.Lock()
 	m.instances[instanceID] = instance
+	m.mu.Unlock()
 
 	return instance, nil
 }
 
 // Get an service instance from its ID
 func (m *CloudManager) GetInstance(id string) (*ServiceInstance, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	instance, exists := m.instances[id]
 	return instance, exists
 }
 
 // This returns all service instances
 func (m *CloudManager) ListInstances() []*ServiceInstance {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	instances := make([]*ServiceInstance, 0, len(m.instances))
 	for _, instance := range m.instances {
 		instances = append(instances, instance)
@@ -339,12 +351,16 @@ func (m *CloudManager) ListInstances() []*ServiceInstance {
 
 // Deleting a service instance be careful when using this in production
 func (m *CloudManager) DeleteInstance(id string) error {
+	m.mu.RLock()
 	instance, exists := m.instances[id]
+	m.mu.RUnlock()
+
 	if !exists {
 		return fmt.Errorf("instance not found: %s", id)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	// Stop and remove the container
 	if err := m.dockerClient.ContainerStop(ctx, instance.ContainerID, container.StopOptions{}); err != nil {
@@ -355,7 +371,10 @@ func (m *CloudManager) DeleteInstance(id string) error {
 		return fmt.Errorf("error removing container: %v", err)
 	}
 
+	m.mu.Lock()
 	delete(m.instances, id)
+	m.mu.Unlock()
+
 	return nil
 }
 
@@ -392,12 +411,20 @@ func (m *CloudManager) RecreateWithDomain(id string, domain *DomainConfig) (*Ser
 // CreateTraefikBundle — programmatically run Traefik with ACME on your network
 // Equivalent to the docker-compose in the docs; keeps ops inside Go if desired.
 func (m *CloudManager) CreateTraefikBundle(acmeEmail string) (string, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	// Pull image if needed
-	if _, err := m.dockerClient.ImagePull(ctx, "traefik:v3.0", image.PullOptions{}); err != nil {
-		// ignore streaming body; just attempt pull
-		log.Printf("warning: image pull may have failed (non-fatal): %v", err)
+	reader, err := m.dockerClient.ImagePull(ctx, "traefik:v3.0", image.PullOptions{})
+	if err != nil {
+		log.Printf("warning: image pull failed (non-fatal): %v", err)
+	} else {
+		// Read and close the response body to avoid resource leak
+		defer func() {
+			_ = reader.Close()
+		}()
+		// Discard the pull output
+		_, _ = io.Copy(io.Discard, reader)
 	}
 
 	cfg := &container.Config{

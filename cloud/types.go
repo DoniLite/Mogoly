@@ -1,6 +1,7 @@
 package cloud
 
 import (
+	"sync"
 	"time"
 
 	"github.com/moby/moby/client"
@@ -57,6 +58,7 @@ type CloudManager struct {
 	instances    map[string]*ServiceInstance
 	portCounter  int
 	networkName  string
+	mu           sync.RWMutex // Protects instances and portCounter
 }
 
 type VolumeMount struct {
