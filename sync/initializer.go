@@ -21,6 +21,13 @@ func NewClient() *Client {
 }
 
 func NewServer(onMsg HandlerFunc, originChecker func(r *http.Request) bool) *Server {
+	// Default to allowing all origins if no checker provided
+	if originChecker == nil {
+		originChecker = func(r *http.Request) bool {
+			return true
+		}
+	}
+
 	server := &Server{
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,

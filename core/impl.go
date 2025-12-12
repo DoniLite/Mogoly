@@ -58,9 +58,9 @@ func (server *Server) DelBalancingServer(name string) {
 		if s != nil && s.Name != name {
 			filtered = append(filtered, s)
 		}
-		server.logf(LOG_INFO, "[SERVER]: Removing server %s", name)
 	}
 	server.BalancingServers = filtered
+	server.logf(LOG_INFO, "[SERVER]: Removed server %s", name)
 }
 
 func (server *Server) GetServer(name string) *Server {
@@ -264,8 +264,8 @@ func (rs *RouterState) AddServer(server *Server) {
 }
 
 func (rs *RouterState) RemoveServer(server *Server) {
-	rs.mu.RLock()
-	defer rs.mu.RUnlock()
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
 	delete(rs.m, strings.ToLower(server.Name))
 	delete(rs.s, strings.ToLower(server.Name))
 }
