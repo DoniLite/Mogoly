@@ -1,4 +1,4 @@
-package core
+package router
 
 import (
 	"crypto/tls"
@@ -6,18 +6,40 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/DoniLite/Mogoly/core/domain"
+	"github.com/DoniLite/Mogoly/core/server"
 )
 
 func TestServeHTTPS_LocalhostSNI(t *testing.T) {
-	// backend server "app.localhost" served over Mogoly HTTPS
-	app := httptest.NewServer(http.HandlerFunc(Ping))
-	defer app.Close()
-	s := &Server{Name: "app.localhost", URL: app.URL}
-	BuildRouter(&Config{Servers: []*Server{s}})
+	// Setup temp home for config
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
 
-	cm := NewCertManager(t.TempDir(), "noreply@example.com", "development")
+	// Setup temp hosts file
+	hostsPath := filepath.Join(tempHome, "hosts")
+	if err := os.WriteFile(hostsPath, []byte{}, 0644); err != nil {
+		t.Fatalf("failed to create hosts file: %v", err)
+	}
+	t.Setenv("MOGOLY_HOSTS_PATH", hostsPath)
+
+	// backend server "app.localhost" served over Mogoly HTTPS
+	app := httptest.NewServer(http.HandlerFunc(server.Ping))
+	defer app.Close()
+	s := &server.Server{Name: "app.localhost", URL: app.URL}
+	BuildRouter(&Config{Servers: []*server.Server{s}})
+
+	cm, err := domain.NewManager()
+	if err != nil {
+		t.Fatalf("failed to create manager: %v", err)
+	}
+	if err := cm.Add("app.localhost", true); err != nil {
+		t.Fatalf("failed to add domain: %v", err)
+	}
 	ts := ServeHTTPS("127.0.0.1:0", cm)
 	defer func() {
 		if err := ts.Close(); err != nil {

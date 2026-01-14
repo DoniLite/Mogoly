@@ -2,6 +2,8 @@ package core
 
 import (
 	"testing"
+
+	"github.com/DoniLite/Mogoly/core/server"
 )
 
 func TestDiscoverConfigFormat(t *testing.T) {
@@ -28,7 +30,7 @@ func TestParseConfig_JSON_YAML_AndBuildURL(t *testing.T) {
 	if err != nil || len(cfg.Servers) != 1 {
 		t.Fatalf("json parse: %v %#v", err, cfg)
 	}
-	u, err := buildServerURL(cfg.Servers[0])
+	u, err := server.BuildServerURL(cfg.Servers[0])
 	if err != nil || u != "http://127.0.0.1:8080" {
 		t.Fatalf("build url: got %q err %v", u, err)
 	}
@@ -36,7 +38,7 @@ func TestParseConfig_JSON_YAML_AndBuildURL(t *testing.T) {
 	if err != nil || len(cfg2.Servers) != 1 {
 		t.Fatalf("yaml parse: %v %#v", err, cfg2)
 	}
-	u2, err := buildServerURL(cfg2.Servers[0])
+	u2, err := server.BuildServerURL(cfg2.Servers[0])
 	if err != nil || u2 != "http://127.0.0.1:8081" {
 		t.Fatalf("build url: got %q err %v", u2, err)
 	}

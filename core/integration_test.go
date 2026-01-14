@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DoniLite/Mogoly/core/server"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,8 +29,8 @@ func TestIntegration_ConfigParsing(t *testing.T) {
 }
 
 func TestIntegration_HealthChecker_Error(t *testing.T) {
-	server := &Server{Name: "bad", URL: "http://invalid:9999"}
-	ok, err := HealthChecker(server)
+	s := &server.Server{Name: "bad", URL: "http://invalid:9999"}
+	ok, err := server.HealthChecker(s)
 	assert.False(t, ok)
 	assert.Error(t, err)
 }
@@ -48,28 +49,28 @@ func TestIntegration_LoadBalancerWithHealthCheck(t *testing.T) {
 	}))
 	defer unhealthy.Close()
 
-	server := &Server{Name: "main"}
-	serverHealthy := &Server{Name: "healthy", URL: healthy.URL}
-	serverUnhealthy := &Server{Name: "unhealthy", URL: unhealthy.URL}
+	s := &server.Server{Name: "main"}
+	serverHealthy := &server.Server{Name: "healthy", URL: healthy.URL}
+	serverUnhealthy := &server.Server{Name: "unhealthy", URL: unhealthy.URL}
 
 	_ = serverHealthy.UpgradeProxy()
 	_ = serverUnhealthy.UpgradeProxy()
 
-	server.AddNewBalancingServer(serverHealthy)
-	server.AddNewBalancingServer(serverUnhealthy)
+	s.AddNewBalancingServer(serverHealthy)
+	s.AddNewBalancingServer(serverUnhealthy)
 
 	// Health check all
-	status, err := server.CheckHealthAll()
+	status, err := s.CheckHealthAll()
 	assert.NoError(t, err)
 	assert.NotNil(t, status)
 	assert.True(t, len(status.Pass)+len(status.Fail) == 2)
 
 	// Use only healthy server for load balancer
-	server.BalancingServers = []*Server{serverHealthy}
+	s.BalancingServers = []*server.Server{serverHealthy}
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	server.ServeHTTP(w, req)
+	s.ServeHTTP(w, req)
 	resp := w.Result()
 	assert.Equal(t, 200, resp.StatusCode)
 }

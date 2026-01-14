@@ -1,4 +1,4 @@
-package core
+package server
 
 const (
 	MogolyRatelimiter MiddleWareName = "mogoly:ratelimiter"

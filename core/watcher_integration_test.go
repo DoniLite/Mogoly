@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/DoniLite/Mogoly/core/router"
 )
 
 func TestWatchConfig_ReloadsOnChange(t *testing.T) {
@@ -16,8 +18,8 @@ func TestWatchConfig_ReloadsOnChange(t *testing.T) {
 		t.Fatalf("error writing original config file: %v", err)
 	}
 
-	reloaded := make(chan *Config, 1)
-	if err := WatchConfig(fp, func(c *Config) { reloaded <- c }); err != nil {
+	reloaded := make(chan *router.Config, 1)
+	if err := WatchConfig(fp, func(c *router.Config) { reloaded <- c }); err != nil {
 		t.Fatalf("watch: %v", err)
 	}
 	time.Sleep(150 * time.Millisecond) // allow watcher to start
