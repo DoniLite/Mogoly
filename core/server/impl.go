@@ -188,7 +188,7 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	server.logf(events.LOG_INFO, "[Load Balancer]: Selecting next server for the %s proxy", server.Name)
 
 	if len(server.BalancingServers) > 0 {
-		strategy := config.GetEnv(config.BALANCER_STRATEGY, "round_robin")
+		strategy := config.GetEnv(config.BALANCER_STRATEGY, string(RoundRobin))
 		backend, err = server.GetNextServer(ServerStrategy(strategy))
 		if err != nil {
 			server.logf(events.LOG_ERROR, "[Load Balancer] error for the %s server: %v", server.Name, err)

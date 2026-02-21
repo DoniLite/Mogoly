@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net"
 
 	"github.com/moby/moby/client"
 )
@@ -44,3 +45,32 @@ func initManager(cli *client.Client) (*CloudManager, error) {
 	}
 	return manager, nil
 }
+
+
+func isTCPPortAvailable(port string) bool {
+	address := net.JoinHostPort("localhost", port)
+	// Try to listen on the specified port
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		fmt.Printf("Port %s is already in use: %v\n", port, err)
+		return false
+	}
+	defer listener.Close() // Close the listener immediately after success
+
+	fmt.Printf("Port %s is available.\n", port)
+	return true
+}
+
+// func isUDPPortAvailable(port string) bool {
+// 	address := net.JoinHostPort("[::]", port)
+// 	// Try to listen on the specified port
+// 	listener, err := net.Listen("udp", address)
+// 	if err != nil {
+// 		fmt.Printf("Port %s is already in use: %v\n", port, err)
+// 		return false
+// 	}
+// 	defer listener.Close() // Close the listener immediately after success
+
+// 	fmt.Printf("Port %s is available.\n", port)
+// 	return true
+// }

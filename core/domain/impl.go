@@ -29,12 +29,14 @@ func getEndPointFromEnvConfig(envKey string) string {
 	}
 
 	return certmagic.LetsEncryptStagingCA
-
 }
 
+func (m *Manager) InitCertManager(email string) {
+	events.Logf(events.LOG_INFO, "[CERT MANAGER]: Initializing cert manager")
 
-func (m *Manager) InitCertManager(cacheDir, email, envKey string) {
-	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+	var dir string
+	var err error
+	if dir, err = config.CreateConfigDir("cache/certmagic"); err != nil {
 		events.Logf(events.LOG_ERROR, "[CERT MANAGER]: cert cache mkdir error: %s", err.Error())
 	}
 	cfg := certmagic.New(cache, certmagic.Config{})
@@ -43,10 +45,12 @@ func (m *Manager) InitCertManager(cacheDir, email, envKey string) {
 		Email:  email,
 		Agreed: true,
 	})
-	storage := &certmagic.FileStorage{Path: cacheDir}
+	storage := &certmagic.FileStorage{Path: dir}
 	cfg.Storage = storage
 	cfg.Issuers = []certmagic.Issuer{userACME}
 	m.cm = cfg
+
+	events.Logf(events.LOG_INFO, "[CERT MANAGER]: Cert manager initialized successfully")
 }
 
 // Add adds a custom domain to the system

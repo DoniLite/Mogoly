@@ -31,7 +31,7 @@ func TestServeHTTPS_LocalhostSNI(t *testing.T) {
 	app := httptest.NewServer(http.HandlerFunc(server.Ping))
 	defer app.Close()
 	s := &server.Server{Name: "app.localhost", URL: app.URL}
-	BuildRouter(&Config{Servers: []*server.Server{s}})
+	buildRouter(&Config{Servers: []*server.Server{s}})
 
 	cm, err := domain.NewManager()
 	if err != nil {

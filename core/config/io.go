@@ -40,3 +40,11 @@ func CreateConfigDir(configDir string) (string, error) {
 	}
 	return path, nil
 }
+
+func LoadConfigFile(configPath string) ([]byte, error) {
+	path, err := buildPathFromHome(configPath)
+	if err != nil {
+		return nil, err
+	}
+	return os.ReadFile(path)	
+}

@@ -141,3 +141,21 @@ func (m *CloudManager) GetInstanceLogs(id string, tailLines int) (string, error)
 
 	return string(logs), nil
 }
+
+func (m *CloudManager) StreamInstanceLogs(id string) (io.ReadCloser, error) {
+	m.mu.RLock()
+	instance, exists := m.instances[id]
+	m.mu.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("instance not found: %s", id)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	return m.dockerClient.ContainerLogs(ctx, instance.ContainerID, container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+	})
+}

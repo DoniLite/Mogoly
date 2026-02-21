@@ -18,7 +18,7 @@ func routeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "router not ready", http.StatusServiceUnavailable)
 		return
 	}
-	b, ok := rs.m[strings.ToLower(r.Host)]
+	b, ok := rs.httpServerMap[strings.ToLower(r.Host)]
 	if !ok {
 		events.Logf(events.LOG_ERROR, "[ROUTER]: Not found route for %s", strings.ToLower(r.Host))
 		http.NotFound(w, r)
@@ -34,7 +34,7 @@ func httpEntry(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "router not ready", http.StatusServiceUnavailable)
 		return
 	}
-	if b, ok := rs.s[strings.ToLower(r.Host)]; ok && b.ForceTLS {
+	if b, ok := rs.serverMap[strings.ToLower(r.Host)]; ok && b.ForceTLS {
 		url := *r.URL
 		url.Scheme = "https"
 		url.Host = r.Host

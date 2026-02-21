@@ -40,7 +40,7 @@ func currentDockerContext() (string, error) {
 
 // read host from `docker context inspect <name>` JSON
 func dockerHostFromContext(name string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2 * time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "docker", "context", "inspect", name)
 	var out bytes.Buffer

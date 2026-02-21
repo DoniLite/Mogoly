@@ -19,7 +19,7 @@ import (
 	"github.com/DoniLite/Mogoly/core/config"
 )
 
-const MogolyMarker = "# Managed by Mogoly"
+const MogolyMarker string = "# Managed by Mogoly"
 
 // Manager handles hosts file operations
 type Manager struct {

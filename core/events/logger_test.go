@@ -15,7 +15,7 @@ func TestLoggerBlocking(t *testing.T) {
 	done := make(chan bool)
 	go func() {
 		// Try to log more than buffer size
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			Logf(LOG_INFO, "test log %d", i)
 		}
 		done <- true
@@ -40,7 +40,7 @@ func TestLoggerNonBlocking(t *testing.T) {
 
 	done := make(chan bool)
 	go func() {
-		for i := 0; i < 20; i++ {
+		for i := range 20 {
 			Logf(LOG_INFO, "test log %d", i)
 		}
 		done <- true

@@ -9,17 +9,18 @@ import (
 )
 
 type RouterState struct {
-	mu           sync.RWMutex
-	m            map[string]http.Handler // host -> backend
-	s            map[string]*server.Server
+	mu                      sync.RWMutex
+	httpServerMap           map[string]http.Handler // host -> backend
+	serverMap               map[string]*server.Server
+	cloudMap                map[string]*cloud.ServiceConfig
+	cloudServiceInstanceMap map[string]*cloud.ServiceInstance
+	serviceManager          *cloud.CloudManager
+
 	globalConfig *Config
 }
 
 type Config struct {
-	Servers             []*server.Server       `json:"server" yaml:"server"` // The servers instances
-	HealthCheckInterval int                    `json:"healthcheck_interval,omitempty" yaml:"healthcheck_interval,omitempty"`
-	LogOutput           string                 `json:"log_output,omitempty" yaml:"log_output,omitempty"`
-	Stream              bool                   `json:"stream,omitempty" yaml:"stream,omitempty"`
-	Services            []*cloud.ServiceConfig `json:"services,omitempty" yaml:"services,omitempty"`
-	Variables           map[string]string      `json:"variables,omitempty" yaml:"variables,omitempty"`
+	Servers   []*server.Server       `json:"server" yaml:"server"` // The servers instances
+	Services  []*cloud.ServiceConfig `json:"services,omitempty" yaml:"services,omitempty"`
+	Variables map[string]string      `json:"variables,omitempty" yaml:"variables,omitempty"`
 }
