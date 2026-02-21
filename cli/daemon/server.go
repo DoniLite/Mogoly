@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -13,19 +12,31 @@ import (
 	"time"
 
 	"github.com/DoniLite/Mogoly/cli/actions"
+	"github.com/DoniLite/Mogoly/core/domain"
+	"github.com/DoniLite/Mogoly/core/events"
+	"github.com/DoniLite/Mogoly/core/router"
 	mogoly_sync "github.com/DoniLite/Mogoly/sync"
 )
 
+const (
+	HTTP_ADDRESS string = ":80"
+	TLS_ADDRESS  string = ":443"
+)
+
+var server *Server
+
 // Server represents the daemon server
 type Server struct {
-	socketPath   string
-	listener     net.Listener
-	mu           sync.RWMutex
-	running      bool
-	logWriter    io.Writer
-	shutdownChan chan struct{}
-	syncServer   *mogoly_sync.Server
-	httpServer   *http.Server
+	socketPath       string
+	listener         net.Listener
+	mu               sync.RWMutex
+	running          bool
+	shutdownChan     chan struct{}
+	syncServer       *mogoly_sync.Server
+	httpServer       *http.Server
+	mogolyRouter     *router.RouterState
+	mogolyHttpServer *http.Server
+	mogolyTlsServer  *http.Server
 }
 
 // NewServer creates a new daemon server
@@ -34,24 +45,15 @@ func NewServer(socketPath string) (*Server, error) {
 		socketPath = GetSocketPath()
 	}
 
-	logPath, err := GetLogFilePath()
-	if err != nil {
-		return nil, err
-	}
-
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open log file: %v", err)
-	}
-
 	s := &Server{
 		socketPath:   socketPath,
-		logWriter:    io.MultiWriter(os.Stdout, logFile),
 		shutdownChan: make(chan struct{}),
 	}
 
 	// Initialize sync server
 	s.syncServer = mogoly_sync.NewServer(s.handleMessage, nil)
+
+	server = s
 
 	return s, nil
 }
@@ -97,6 +99,27 @@ func (s *Server) Start() error {
 	s.httpServer = &http.Server{
 		Handler: s.syncServer,
 	}
+
+	// Build the router state
+	router.Startup(nil)
+	r, err := router.GetRouter()
+	if err != nil || r == nil {
+		return fmt.Errorf("failed to get or build router: %v", err)
+	}
+	s.mogolyRouter = r
+
+	domainManager, err := domain.NewManager()
+	if err != nil {
+		return fmt.Errorf("failed to create domain manager: %v", err)
+	}
+
+	// Build the mogoly servers
+	svr := router.ServeHTTP(HTTP_ADDRESS)
+	s.mogolyHttpServer = svr
+
+	// Build the mogoly TLS servers
+	tlsSvr := router.ServeHTTPS(TLS_ADDRESS, domainManager)
+	s.mogolyTlsServer = tlsSvr
 
 	go func() {
 		if err := s.httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
@@ -153,6 +176,20 @@ func (s *Server) Stop() error {
 		s.httpServer.Shutdown(ctx)
 	}
 
+	// Stop TLS server
+	if s.mogolyTlsServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		s.mogolyTlsServer.Shutdown(ctx)
+	}
+
+	// Stop HTTPS server
+	if s.mogolyHttpServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		s.mogolyHttpServer.Shutdown(ctx)
+	}
+
 	// Close listener if not already closed by Shutdown
 	if s.listener != nil {
 		s.listener.Close()
@@ -196,9 +233,7 @@ func (s *Server) writePIDFile() error {
 
 // log writes a log message
 func (s *Server) log(format string, args ...any) {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	msg := fmt.Sprintf("[%s] %s\n", timestamp, fmt.Sprintf(format, args...))
-	s.logWriter.Write([]byte(msg))
+	events.Logf(events.LOG_INFO, format, args...)
 }
 
 // Wait waits for the server to shutdown
