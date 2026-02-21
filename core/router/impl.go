@@ -55,6 +55,16 @@ func (rs *RouterState) GetHandler(name string) (http.Handler, error) {
 	return rs.httpServerMap[strings.ToLower(name)], nil
 }
 
+func (rs *RouterState) ListServers() []*server.Server {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	servers := make([]*server.Server, 0, len(rs.serverMap))
+	for _, server := range rs.serverMap {
+		servers = append(servers, server)
+	}
+	return servers
+}
+
 // Services
 
 func (rs *RouterState) AddService(service *cloud.ServiceConfig) {

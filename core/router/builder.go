@@ -96,6 +96,11 @@ func CreateSingleHttpServer(s *server.Server) http.Handler {
 }
 
 func MergeRouterConfigs(newConfig *Config) *Config {
+
+	if currentRouter == nil {
+		buildRouter(nil)
+	}
+
 	conf := currentRouter.globalConfig
 
 	if conf == nil {
