@@ -33,3 +33,31 @@ type CheckServerHealthPayload struct {
 	Name       string `json:"name"`
 	SelfOnly   bool   `json:"self_only"`
 }
+
+// Cloud payload types
+type CloudCreatePayload struct {
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	Version      string `json:"version"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	DatabaseName string `json:"database_name"`
+}
+
+type CloudLogsPayload struct {
+	ID        string `json:"id"`
+	TailLines int    `json:"tail_lines"`
+	Follow    bool   `json:"follow"`
+}
+
+// Load balancer payload types
+type LBCreatePayload struct {
+	Name       string `json:"name"`
+	ConfigPath string `json:"config_path"`
+}
+
+type LBAddBackendPayload struct {
+	LBName      string `json:"lb_name"`
+	BackendName string `json:"backend_name"`
+	BackendURL  string `json:"backend_url"`
+}

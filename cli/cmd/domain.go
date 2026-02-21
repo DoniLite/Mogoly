@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/DoniLite/Mogoly/cli/actions"
 	"github.com/DoniLite/Mogoly/cli/daemon"
 	"github.com/spf13/cobra"
 )
@@ -55,7 +56,7 @@ var domainAddCmd = &cobra.Command{
 			"auto_ssl": domainAutoSSL,
 		}
 
-		resp, err := client.SendAction(ctx, daemon.ActionDomainAdd, payload)
+		resp, err := client.SendAction(ctx, actions.ActionDomainAdd, payload)
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -90,7 +91,7 @@ var domainListCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionDomainList, nil)
+		resp, err := client.SendAction(ctx, actions.ActionDomainList, nil)
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -148,7 +149,7 @@ var domainRemoveCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionDomainRemove, map[string]string{"domain": domain})
+		resp, err := client.SendAction(ctx, actions.ActionDomainRemove, map[string]string{"domain": domain})
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}

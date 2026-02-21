@@ -20,6 +20,7 @@ const (
 	ConfigDir = config.BASE_CONFIG_DIR
 	StateFile = "daemon.json"
 	PIDFile   = "mogoly.pid"
+	LogFile   = "mogoly.log"
 )
 
 // GetSocketPath returns the appropriate socket path for the current platform
@@ -75,4 +76,13 @@ func GetPIDFilePath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(configDir, PIDFile), nil
+}
+
+// GetLogFilePath returns the path to the log file
+func GetLogFilePath() (string, error) {
+	configDir, err := GetConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, LogFile), nil
 }

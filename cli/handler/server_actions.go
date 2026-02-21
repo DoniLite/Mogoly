@@ -21,7 +21,7 @@ func BootStrapServer(ctx context.Context, reqID string, payload any) *sync.Messa
 		return sync.NewErrorMessage(err.Error(), fmt.Sprintf("request id: %s", reqID))
 	}
 
-	msg, err := sync.NewMessage(actions.ActionServerCreate, svr, map[string]any{
+	msg, err := sync.NewMessage(actions.ActionLBCreate, svr, map[string]any{
 		"URL": svr.URL,
 	})
 	if err != nil {
@@ -36,7 +36,7 @@ func ListServers(ctx context.Context, reqID string, payload any) *sync.Message {
 
 	servers := router.ListServers()
 
-	msg, err := sync.NewMessage(actions.ActionServerList, servers, map[string]any{
+	msg, err := sync.NewMessage(actions.ActionLBList, servers, map[string]any{
 		"count": len(servers),
 	})
 	if err != nil {
@@ -58,7 +58,7 @@ func AddBackend(ctx context.Context, reqID string, payload any) *sync.Message {
 
 	svr.AddNewBalancingServer(parsedPayload.Server)
 
-	msg, err := sync.NewMessage(actions.ActionServerAddBackend, svr, map[string]any{
+	msg, err := sync.NewMessage(actions.ActionLBAddBackend, svr, map[string]any{
 		"URL": svr.URL,
 	})
 	if err != nil {
@@ -80,7 +80,7 @@ func RemoveBackend(ctx context.Context, reqID string, payload any) *sync.Message
 
 	svr.DelBalancingServer(parsedPayload.BackendName)
 
-	msg, err := sync.NewMessage(actions.ActionServerRemoveBackend, svr, map[string]any{
+	msg, err := sync.NewMessage(actions.ActionLBRemoveBackend, svr, map[string]any{
 		"URL": svr.URL,
 	})
 	if err != nil {
@@ -116,7 +116,7 @@ func CheckServerHealth(ctx context.Context, reqID string, payload any) *sync.Mes
 		}
 	}
 
-	msg, err := sync.NewMessage(actions.ActionServerHealth, struct {
+	msg, err := sync.NewMessage(actions.ActionLBHealth, struct {
 		SelfStatus       *server.ServerStatus      `json:"self_status"`
 		AllServersStatus *server.HealthCheckStatus `json:"all_servers_status"`
 	}{
