@@ -18,13 +18,13 @@ const (
 
 	// Load balancer actions
 
-	ActionServerCreate
-	ActionServerList
-	ActionServerAddBackend
-	ActionServerRemoveBackend
-	ActionServerHealth
-	ActionServerStart
-	ActionServerStop
+	ActionLBCreate
+	ActionLBList
+	ActionLBAddBackend
+	ActionLBRemoveBackend
+	ActionLBHealth
+	ActionLBStart
+	ActionLBStop
 
 	// Daemon actions
 

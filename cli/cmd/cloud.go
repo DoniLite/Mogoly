@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/DoniLite/Mogoly/cli/actions"
 	"github.com/DoniLite/Mogoly/cli/daemon"
 	"github.com/spf13/cobra"
 )
@@ -51,7 +52,7 @@ var cloudCreateCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		payload := daemon.CloudCreatePayload{
+		payload := actions.CloudCreatePayload{
 			Name:         name,
 			Type:         cloudType,
 			Version:      cloudVersion,
@@ -60,7 +61,7 @@ var cloudCreateCmd = &cobra.Command{
 			DatabaseName: cloudDatabase,
 		}
 
-		resp, err := client.SendAction(ctx, daemon.ActionCloudCreate, payload)
+		resp, err := client.SendAction(ctx, actions.ActionCloudCreate, payload)
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -84,7 +85,7 @@ var cloudListCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionCloudList, nil)
+		resp, err := client.SendAction(ctx, actions.ActionCloudList, nil)
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -135,7 +136,7 @@ var cloudStartCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionCloudStart, map[string]string{"id": id})
+		resp, err := client.SendAction(ctx, actions.ActionCloudStart, map[string]string{"id": id})
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -162,7 +163,7 @@ var cloudStopCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionCloudStop, map[string]string{"id": id})
+		resp, err := client.SendAction(ctx, actions.ActionCloudStop, map[string]string{"id": id})
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -189,7 +190,7 @@ var cloudRestartCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionCloudRestart, map[string]string{"id": id})
+		resp, err := client.SendAction(ctx, actions.ActionCloudRestart, map[string]string{"id": id})
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -216,7 +217,7 @@ var cloudDeleteCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionCloudDelete, map[string]string{"id": id})
+		resp, err := client.SendAction(ctx, actions.ActionCloudDelete, map[string]string{"id": id})
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -243,7 +244,7 @@ var cloudLogsCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		payload := daemon.CloudLogsPayload{
+		payload := actions.CloudLogsPayload{
 			ID:        id,
 			TailLines: tailLines,
 			Follow:    followLogs,
@@ -256,7 +257,7 @@ var cloudLogsCmd = &cobra.Command{
 		// However, to keep changes minimal and consistent with other commands first, I will use SendAction.
 		// Wait, I replaced StreamLogs with GetLogs in client.go. The cli usage here was just a fetch.
 		// Let's use SendAction for now as it returns *sync.Message.
-		resp, err := client.SendAction(ctx, daemon.ActionCloudLogs, payload)
+		resp, err := client.SendAction(ctx, actions.ActionCloudLogs, payload)
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -288,7 +289,7 @@ var cloudInspectCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionCloudInspect, map[string]string{"id": id})
+		resp, err := client.SendAction(ctx, actions.ActionCloudInspect, map[string]string{"id": id})
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
