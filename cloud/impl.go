@@ -44,8 +44,13 @@ func (m *CloudManager) ensureNetwork() error {
 func (m *CloudManager) getNextPort() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.portCounter++
-	return m.portCounter
+
+	port := m.portCounter + 1
+	for ; !isTCPPortAvailable(strconv.Itoa(port)); port++ {
+	}
+
+	m.portCounter = port
+	return port
 }
 
 // Returning the Docker configuration for a service/db type
@@ -161,7 +166,7 @@ func (m *CloudManager) CreateInstance(config ServiceConfig) (*ServiceInstance, e
 		config.DatabaseName = config.Name
 	}
 
-	image, envVars, exposedPorts, err := m.getDockerConfig(config)
+	img, envVars, exposedPorts, err := m.getDockerConfig(config)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +229,7 @@ func (m *CloudManager) CreateInstance(config ServiceConfig) (*ServiceInstance, e
 	}
 
 	containerConfig := &container.Config{
-		Image:  image,
+		Image:  img,
 		Env:    make([]string, 0, len(envVars)),
 		Labels: labels,
 	}
@@ -301,6 +306,17 @@ func (m *CloudManager) CreateInstance(config ServiceConfig) (*ServiceInstance, e
 	}
 
 	containerName := fmt.Sprintf("cloud-db-%s-%s", config.Type, instanceID)
+	// Check if the image is available locally or pull it
+	_, err = m.dockerClient.ImageInspect(ctx, img)
+	if err != nil {
+		reader, err := m.dockerClient.ImagePull(ctx, img, image.PullOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("image pull error: %v", err)
+		}
+		defer reader.Close()
+		// Wait for pull to complete
+		_, _ = io.Copy(io.Discard, reader)
+	}
 	resp, err := m.dockerClient.ContainerCreate(
 		ctx,
 		containerConfig,

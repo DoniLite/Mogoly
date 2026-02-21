@@ -7,11 +7,12 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"path"
 	"strings"
 
+	"github.com/DoniLite/Mogoly/core/router"
+	"github.com/DoniLite/Mogoly/core/server"
 	"gopkg.in/yaml.v3"
 )
 
@@ -39,8 +40,8 @@ func DiscoverConfigFormat(configPath string) (string, error) {
 	}
 }
 
-func ParseConfig(content []byte, format string) (*Config, error) {
-	var config Config
+func ParseConfig(content []byte, format string) (*router.Config, error) {
+	var config router.Config
 	switch format {
 	case "json":
 		if err := json.Unmarshal(content, &config); err != nil {
@@ -56,22 +57,7 @@ func ParseConfig(content []byte, format string) (*Config, error) {
 	return &config, nil
 }
 
-func buildServerURL(server *Server) (string, error) {
-	if server == nil {
-		return "", fmt.Errorf("nil server")
-	}
-	if server.URL != "" {
-		if _, err := url.Parse(server.URL); err == nil {
-			return server.URL, nil
-		}
-	}
-	if server.Protocol == "" || server.Host == "" || server.Port == 0 {
-		return "", fmt.Errorf("incomplete server fields for URL (need protocol, host, port)")
-	}
-	return fmt.Sprintf("%s://%s:%d", server.Protocol, server.Host, server.Port), nil
-}
-
-func SerializeHealthCheckStatus(status *HealthCheckStatus) (string, error) {
+func SerializeHealthCheckStatus(status *server.HealthCheckStatus) (string, error) {
 	b, err := json.Marshal(status)
 
 	if err != nil {

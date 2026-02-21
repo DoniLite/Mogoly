@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/DoniLite/Mogoly/core/server"
 )
 
 func TestHealthChecker_OK_and_Fail(t *testing.T) {
@@ -17,14 +19,14 @@ func TestHealthChecker_OK_and_Fail(t *testing.T) {
 	}))
 	defer failSrv.Close()
 
-	sOK := &Server{URL: okSrv.URL}
-	sBad := &Server{URL: failSrv.URL}
+	sOK := &server.Server{URL: okSrv.URL}
+	sBad := &server.Server{URL: failSrv.URL}
 
-	ok, err := HealthChecker(sOK)
+	ok, err := server.HealthChecker(sOK)
 	if !ok || err != nil {
 		t.Fatalf("expected ok health, got ok=%v err=%v", ok, err)
 	}
-	ok, err = HealthChecker(sBad)
+	ok, err = server.HealthChecker(sBad)
 	if ok || err == nil {
 		t.Fatalf("expected fail health, got ok=%v err=%v", ok, err)
 	}

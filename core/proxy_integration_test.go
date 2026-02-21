@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/DoniLite/Mogoly/core/server"
 )
 
 func TestProxy_RoundRobin_Forwarding(t *testing.T) {
@@ -23,9 +25,9 @@ func TestProxy_RoundRobin_Forwarding(t *testing.T) {
 	var got string
 	var firstHitsGot string
 
-	a := &Server{Name: "a", URL: b1.URL, IsHealthy: true}
-	b := &Server{Name: "b", URL: b2.URL, IsHealthy: true}
-	lb := &Server{Name: "lb", BalancingServers: []*Server{a, b}}
+	a := &server.Server{Name: "a", URL: b1.URL, IsHealthy: true}
+	b := &server.Server{Name: "b", URL: b2.URL, IsHealthy: true}
+	lb := &server.Server{Name: "lb", BalancingServers: []*server.Server{a, b}}
 
 	// handler under test
 	h := http.HandlerFunc(lb.ServeHTTP)

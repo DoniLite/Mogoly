@@ -5,11 +5,13 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/DoniLite/Mogoly/core/server"
 )
 
 func TestRateLimiter(t *testing.T) {
-	conf := RateLimitMiddlewareConfig{ReqPerMinute: 2, LimitWindow: time.Second}
-	mw := RateLimiterMiddleware(conf)
+	conf := server.RateLimitMiddlewareConfig{ReqPerMinute: 2, LimitWindow: time.Second}
+	mw := server.RateLimiterMiddleware(conf)
 	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }))
 
 	// 1st & 2nd pass

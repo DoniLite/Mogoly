@@ -1,6 +1,5 @@
 /*
 Copyright © 2025 Doni Lite hello@donilite.me
-
 */
 package cmd
 
@@ -10,21 +9,32 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
+var (
+	cfgFile    string
+	socketPath string
+	noColor    bool
+	debugMode  bool
+	version    = "0.1.0"
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "cli",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Use:   "mogoly",
+	Short: "Mogoly - Load Balancer and Cloud Service Manager",
+	Long: `Mogoly is a powerful CLI tool for managing load balancers and cloud database services.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+It provides:
+  • Load balancing with health checking and automatic failover
+  • Docker-based database services (PostgreSQL, MySQL, MongoDB, Redis, MariaDB)
+  • WebSocket-based daemon for real-time management
+  • Cross-platform support (Linux, macOS, Windows)
+
+Examples:
+  mogoly daemon start              Start the daemon
+  mogoly cloud create mydb -t postgres
+  mogoly cloud list
+  mogoly cloud logs mydb --tail 100`,
+	Version: version,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -37,15 +47,13 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
+	// Global persistent flags
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.mogoly/config.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&socketPath, "socket", "s", "", "daemon socket path")
+	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
+	rootCmd.PersistentFlags().BoolVar(&debugMode, "debug", false, "enable debug logging")
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.cli.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// Version template
+	rootCmd.SetVersionTemplate(`Mogoly version {{.Version}}
+`)
 }
-
-

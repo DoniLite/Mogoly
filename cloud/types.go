@@ -24,7 +24,6 @@ type ServiceInstance struct {
 	Name         string      `json:"name"`
 	Type         ServiceType `json:"type"`
 	ContainerID  string      `json:"container_id"`
-	Port         int         `json:"port"`
 	Username     string      `json:"username,omitempty"`
 	Password     string      `json:"password,omitempty"`
 	DatabaseName string      `json:"database_name,omitempty"`
