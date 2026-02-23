@@ -14,8 +14,14 @@ import (
 func TestNewManager(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	err := os.Setenv("HOME", tempDir)
+	if err != nil {
+		_ = os.Setenv("HOME", originalHome)
+		t.Fatalf("Failed to set HOME environment variable: %v", err)
+	}
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
 
 	m, err := NewManager()
 	if err != nil {
@@ -47,8 +53,14 @@ func TestNewManager(t *testing.T) {
 func TestGenerateSelfSignedCert(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	err := os.Setenv("HOME", tempDir)
+	if err != nil {
+		_ = os.Setenv("HOME", originalHome)
+		t.Fatalf("Failed to set HOME environment variable: %v", err)
+	}
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
 
 	m, err := NewManager()
 	if err != nil {
@@ -104,8 +116,14 @@ func TestGenerateSelfSignedCert(t *testing.T) {
 func TestAddProductionDomain(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	err := os.Setenv("HOME", tempDir)
+	if err != nil {
+		_ = os.Setenv("HOME", originalHome)
+		t.Fatalf("Failed to set HOME environment variable: %v", err)
+	}
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
 
 	m, err := NewManager()
 	if err != nil {
@@ -139,8 +157,14 @@ func TestAddProductionDomain(t *testing.T) {
 func TestRemoveDomain(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	err := os.Setenv("HOME", tempDir)
+	if err != nil {
+		_ = os.Setenv("HOME", originalHome)
+		t.Fatalf("Failed to set HOME environment variable: %v", err)
+	}
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
 
 	m, err := NewManager()
 	if err != nil {
@@ -177,8 +201,14 @@ func TestRemoveDomain(t *testing.T) {
 func TestListDomains(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	err := os.Setenv("HOME", tempDir)
+	if err != nil {
+		_ = os.Setenv("HOME", originalHome)
+		t.Fatalf("Failed to set HOME environment variable: %v", err)
+	}
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
 
 	m, err := NewManager()
 	if err != nil {
@@ -192,8 +222,14 @@ func TestListDomains(t *testing.T) {
 	}
 
 	// Add production domains
-	m.Add("api.example.com", false)
-	m.Add("staging.example.com", false)
+	err = m.Add("api.example.com", false)
+	if err != nil {
+		t.Fatalf("Failed to add domain: %v", err)
+	}
+	err = m.Add("staging.example.com", false)
+	if err != nil {
+		t.Fatalf("Failed to add domain: %v", err)
+	}
 
 	domains = m.List()
 	if len(domains) != 2 {
@@ -229,8 +265,14 @@ func TestIsLocalDomain(t *testing.T) {
 func TestConcurrency(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	err := 	os.Setenv("HOME", tempDir)
+	if err != nil {
+		_ = os.Setenv("HOME", originalHome)
+		t.Fatalf("Failed to set HOME environment variable: %v", err)
+	}
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
 
 	m, err := NewManager()
 	if err != nil {
@@ -243,7 +285,10 @@ func TestConcurrency(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(index int) {
 			domain := "api" + string(rune('0'+index)) + ".example.com"
-			m.Add(domain, false)
+			err := m.Add(domain, false)
+			if err != nil {
+				t.Errorf("Failed to add entry: %v", err)
+			}
 			done <- true
 		}(i)
 	}

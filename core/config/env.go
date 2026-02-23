@@ -13,6 +13,10 @@ func GetEnv(key string, defaultValue string) string {
 	return env
 }
 
-func SetEnv(key, value string) {
-	os.Setenv(fmt.Sprintf("%s%s", ENV_PREFIX, key), value)
+func SetEnv(key, value string) error {
+	err := os.Setenv(fmt.Sprintf("%s%s", ENV_PREFIX, key), value)
+	if err != nil {
+		return err
+	}
+	return nil
 }

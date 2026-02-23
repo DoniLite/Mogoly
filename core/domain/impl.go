@@ -81,8 +81,14 @@ func (m *Manager) Add(domain string, isLocal bool) error {
 		// Add to hosts file
 		if err := m.hostsManager.Add(domain, "127.0.0.1"); err != nil {
 			// Rollback: remove certificate files
-			os.Remove(certPath)
-			os.Remove(keyPath)
+			err = os.Remove(certPath)
+			if err != nil {
+				return fmt.Errorf("failed to remove certificate file: %v", err)
+			}
+			err = os.Remove(keyPath)
+			if err != nil {
+				return fmt.Errorf("failed to remove key file: %v", err)
+			}
 			return fmt.Errorf("failed to add hosts entry: %v", err)
 		}
 	} else {
@@ -112,10 +118,16 @@ func (m *Manager) Remove(domain string) error {
 
 		// Remove certificate files
 		if config.CertPath != "" {
-			os.Remove(config.CertPath)
+			err := os.Remove(config.CertPath)
+			if err != nil {
+				return fmt.Errorf("failed to remove certificate file: %v", err)
+			}
 		}
 		if config.KeyPath != "" {
-			os.Remove(config.KeyPath)
+			err := os.Remove(config.KeyPath)
+			if err != nil {
+				return fmt.Errorf("failed to remove key file: %v", err)
+			}
 		}
 	}
 
@@ -240,7 +252,9 @@ func (m *Manager) generateSelfSignedCert(domain string) (certPath, keyPath strin
 	}
 
 	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
-		os.Remove(certPath) // Cleanup cert file
+		if err := os.Remove(certPath); err != nil {
+			return "", "", fmt.Errorf("failed to remove certificate file: %v", err)
+		}
 		return "", "", fmt.Errorf("failed to write private key: %v", err)
 	}
 

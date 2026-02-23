@@ -48,7 +48,7 @@ func Logf(level LogType, format string, args ...any) {
 		return
 	}
 	msg := fmt.Sprintf("=====================\n[%s] %s \n=====================\n\n", timestamp, fmt.Sprintf(format, args...))
-	currentLogger.writer.Write([]byte(msg))
+	_, _ = currentLogger.writer.Write([]byte(msg))
 	switch level {
 	case LOG_ERROR:
 		GetEventBus().Emit(ErrorDroppedEvent, &goevents.EventData{

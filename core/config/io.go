@@ -48,3 +48,11 @@ func LoadConfigFile(configPath string) ([]byte, error) {
 	}
 	return os.ReadFile(path)	
 }
+
+func WriteIntoConfigFile(configPath string, data []byte) error {
+	path, err := buildPathFromHome(configPath)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
