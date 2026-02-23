@@ -193,7 +193,9 @@ func (m *Manager) loadEntries() error {
 		}
 		return fmt.Errorf("failed to open hosts file: %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {

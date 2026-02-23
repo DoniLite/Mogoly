@@ -213,7 +213,10 @@ func TestConcurrency(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		go func(index int) {
 			domain := "app" + string(rune('0'+index)) + ".local"
-			m.Add(domain, "127.0.0.1")
+			err := m.Add(domain, "127.0.0.1")
+			if err != nil {
+				t.Errorf("Failed to add entry: %v", err)
+			}
 			done <- true
 		}(i)
 	}

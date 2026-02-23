@@ -21,11 +21,21 @@ func Startup(config *Config) {
 
 	if configFromFile != nil && err == nil {
 		buildRouter(configFromFile)
+	} else {
+		buildRouter(&Config{
+			Servers:   make([]*server.Server, 0),
+			Services:  make([]*cloud.ServiceConfig, 0),
+			Variables: make(map[string]string),
+		})
 	}
 
 	if config != nil {
 		MergeRouterConfigs(config)
 	}
+}
+
+func StartupWithDefault() {
+	Startup(nil)
 }
 
 func buildRouter(initialConfig *Config) {
@@ -38,8 +48,8 @@ func buildRouter(initialConfig *Config) {
 	events.Logf(events.LOG_INFO, "[ROUTER]: Building new router for the global server state")
 
 	rs := &RouterState{
-		httpServerMap: make(map[string]http.Handler),
-		serverMap:     make(map[string]*server.Server),
+		httpServerMap:           make(map[string]http.Handler),
+		serverMap:               make(map[string]*server.Server),
 		cloudServiceInstanceMap: make(map[string]*cloud.ServiceInstance),
 		cloudMap:                make(map[string]*cloud.ServiceConfig),
 		serviceManager:          manager,
@@ -63,6 +73,13 @@ func buildRouter(initialConfig *Config) {
 			continue
 		}
 		rs.cloudServiceInstanceMap[strings.ToLower(service.Name)] = currentService
+	}
+
+	initialConfig.BuildVars()
+	err = initialConfig.PersistConfig()
+
+	if err != nil {
+		events.Logf(events.LOG_ERROR, "[ROUTER]: Error while persisting router config: %v", err)
 	}
 
 	rs.globalConfig = initialConfig
@@ -129,6 +146,13 @@ func MergeRouterConfigs(newConfig *Config) *Config {
 			conf.Variables[key] = value
 		}
 	}
+
+	conf.BuildVars()
+	err := conf.PersistConfig()
+	if err != nil {
+		events.Logf(events.LOG_ERROR, "[ROUTER]: Error while persisting router config: %v", err)
+	}
+
 	currentRouter.globalConfig = conf
 	return conf
 }
