@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DoniLite/Mogoly/cli/actions"
 	"github.com/DoniLite/Mogoly/cli/daemon"
 	"github.com/spf13/cobra"
 )
@@ -135,7 +136,7 @@ var daemonStatusCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionDaemonStatus, nil)
+		resp, err := client.SendAction(ctx, actions.ActionDaemonStatus, nil)
 		if err != nil {
 			fmt.Println("Daemon is not responding")
 			return nil

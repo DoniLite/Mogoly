@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/DoniLite/Mogoly/cli/actions"
 	"github.com/DoniLite/Mogoly/cli/daemon"
 	"github.com/spf13/cobra"
 )
@@ -44,12 +45,12 @@ var lbCreateCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		payload := daemon.LBCreatePayload{
+		payload := actions.LBCreatePayload{
 			Name:       lbName,
 			ConfigPath: lbConfigPath,
 		}
 
-		resp, err := client.SendAction(ctx, daemon.ActionLBCreate, payload)
+		resp, err := client.SendAction(ctx, actions.ActionLBCreate, payload)
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -73,7 +74,7 @@ var lbListCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionLBList, nil)
+		resp, err := client.SendAction(ctx, actions.ActionLBList, nil)
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -123,13 +124,13 @@ var lbAddBackendCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		payload := daemon.LBAddBackendPayload{
+		payload := actions.LBAddBackendPayload{
 			LBName:      lbName,
 			BackendName: backendName,
 			BackendURL:  backendURL,
 		}
 
-		resp, err := client.SendAction(ctx, daemon.ActionLBAddBackend, payload)
+		resp, err := client.SendAction(ctx, actions.ActionLBAddBackend, payload)
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -162,7 +163,7 @@ var lbRemoveBackendCmd = &cobra.Command{
 			"backend_name": backendName,
 		}
 
-		resp, err := client.SendAction(ctx, daemon.ActionLBRemoveBackend, payload)
+		resp, err := client.SendAction(ctx, actions.ActionLBRemoveBackend, payload)
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -189,7 +190,7 @@ var lbHealthCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionLBHealth, map[string]string{"lb_name": lbName})
+		resp, err := client.SendAction(ctx, actions.ActionLBHealth, map[string]string{"lb_name": lbName})
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -241,7 +242,7 @@ var lbStartCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionLBStart, map[string]string{"lb_name": lbName})
+		resp, err := client.SendAction(ctx, actions.ActionLBStart, map[string]string{"lb_name": lbName})
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
@@ -268,7 +269,7 @@ var lbStopCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resp, err := client.SendAction(ctx, daemon.ActionLBStop, map[string]string{"lb_name": lbName})
+		resp, err := client.SendAction(ctx, actions.ActionLBStop, map[string]string{"lb_name": lbName})
 		if err != nil {
 			return fmt.Errorf("failed to communicate with daemon: %v", err)
 		}
